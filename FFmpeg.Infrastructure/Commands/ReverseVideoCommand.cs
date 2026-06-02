@@ -21,16 +21,12 @@ namespace FFmpeg.Infrastructure.Commands
 
         public async Task<CommandResult> ExecuteAsync(ReverseVideoModel model)
         {
-            // בניית פקודת ה-FFmpeg בעזרת ה-Builder
             CommandBuilder = _commandBuilder
-                .SetInput(model.InputFile)
-                .AddOption("-vf reverse")  // הוספת פילטר להיפוך הוידאו (Video Filter)
-                .AddOption("-af areverse"); // הוספת פילטר להיפוך הסאונד (Audio Filter)
+        .SetInput(model.InputFile)
+        .AddOption("-vf reverse");
 
-            // הגדרת קובץ הפלט (מכיוון שזה וידאו, נשלח false ל-isFrameOutput)
             CommandBuilder.SetOutput(model.OutputFile, isFrameOutput: false);
 
-            // הרצת הפקודה באמצעות ה-BaseCommand של הפרויקט
             return await RunAsync();
         }
     

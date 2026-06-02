@@ -110,25 +110,20 @@ namespace FFmpeg.API.Endpoints
 
             try
             {
-                // ולידציה - בדיקה שהועלה קובץ
                 if (dto.VideoFile == null)
                 {
                     return Results.BadRequest("Video file is required");
                 }
 
-                // שמירת קובץ הקלט הזמני
                 string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
 
-                // יצירת שם ייחודי לקובץ הפלט
                 string extension = Path.GetExtension(dto.VideoFile.FileName);
                 string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
 
-                // רשימת קבצים לניקוי בסיום התהליך
                 List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
 
                 try
                 {
-                    // קריאה ל-Command של היפוך הוידאו דרך ה-Factory
                     var command = ffmpegService.CreateReverseVideoCommand();
                     var result = await command.ExecuteAsync(new ReverseVideoModel
                     {
@@ -136,7 +131,6 @@ namespace FFmpeg.API.Endpoints
                         OutputFile = outputFileName
                     });
 
-                    // בדיקה אם הפקודה הצליחה
                     if (!result.IsSuccess)
                     {
                         logger.LogError("FFmpeg reverse command failed: {ErrorMessage}, Command: {Command}",
@@ -144,13 +138,10 @@ namespace FFmpeg.API.Endpoints
                         return Results.Problem("Failed to reverse video: " + result.ErrorMessage, statusCode: 500);
                     }
 
-                    // קריאת קובץ התוצאה המוכן
                     byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
 
-                    // ניקוי הקבצים הזמניים מהשרת בדיסק
                     _ = fileService.CleanupTempFilesAsync(filesToCleanup);
 
-                    // החזרת הוידאו ההפוך כקובץ להורדה/צפייה
                     return Results.File(fileBytes, "video/mp4", "reversed_" + dto.VideoFile.FileName);
                 }
                 catch (Exception ex)
