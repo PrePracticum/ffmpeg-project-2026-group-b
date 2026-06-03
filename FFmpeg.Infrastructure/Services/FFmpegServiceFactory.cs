@@ -17,6 +17,7 @@ namespace FFmpeg.Infrastructure.Services
 
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
 
+        ICommand<CutVideoModel> CreateCutVideoCommand();
     }
 
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -43,6 +44,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ReverseVideoModel> CreateReverseVideoCommand()
         {
             return new ReverseVideoCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<CutVideoModel> CreateCutVideoCommand()
+        {
+            return new CutVideoCommand(_executor, _commandBuilder);
         }
     }
 }
