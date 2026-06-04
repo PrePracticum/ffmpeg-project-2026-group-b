@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
-namespace Ffmpeg.API.DTOs
+namespace FFmpeg.API.DTOs
 {
     public class GreenScreenDto
     {
