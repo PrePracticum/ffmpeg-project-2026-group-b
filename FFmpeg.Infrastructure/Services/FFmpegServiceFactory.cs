@@ -16,6 +16,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<WatermarkModel> CreateWatermarkCommand();
 
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
+        ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand();
 
     }
 
@@ -43,6 +44,10 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ReverseVideoModel> CreateReverseVideoCommand()
         {
             return new ReverseVideoCommand(_executor, _commandBuilder);
+        }
+        public ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand()
+        {
+            return new ChangeAudioFormatCommand(_executor, _commandBuilder);
         }
     }
 }

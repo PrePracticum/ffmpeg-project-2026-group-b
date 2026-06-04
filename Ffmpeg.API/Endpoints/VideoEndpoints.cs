@@ -24,6 +24,8 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/reverse", ReverseVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
+            app.MapPost("/api/audio/change-format", ChangeAudioFormat)
+                .DisableAntiforgery();
         }
 
         private static async Task<IResult> AddWatermark(
@@ -154,6 +156,63 @@ namespace FFmpeg.API.Endpoints
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error in ReverseVideo endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
+        private static async Task<IResult> ChangeAudioFormat(
+            HttpContext context,
+            [FromForm] ChangeAudioFormatDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var executor = context.RequestServices.GetRequiredService<FFmpegExecutor>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.AudioFile == null)
+                {
+                    return Results.BadRequest("Audio file is required");
+                }
+
+                string audioFileName = await fileService.SaveUploadedFileAsync(dto.AudioFile);
+                
+                string extension = string.IsNullOrEmpty(dto.TargetFormat) ? ".wav" : dto.TargetFormat;
+                if (!extension.StartsWith(".")) extension = "." + extension;
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new List<string> { audioFileName, outputFileName };
+
+                try
+                {
+                    var command = new FFmpeg.Infrastructure.Commands.ChangeAudioFormatCommand(executor);
+                    var result = await command.ExecuteAsync(new ChangeAudioFormatModel
+                    {
+                        InputFile = audioFileName,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg command failed: {ErrorMessage}", result.ErrorMessage);
+                        return Results.Problem("Failed to change format: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    string finalName = "converted_audio" + extension;
+                    return Results.File(fileBytes, "audio/" + extension.Trim('.'), finalName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing audio format request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ChangeAudioFormat endpoint");
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
