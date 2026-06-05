@@ -16,7 +16,9 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<WatermarkModel> CreateWatermarkCommand();
 
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
+
         ICommand<GreenScreenModel> CreateGreenScreenCommand();
+        
     }
 
     public class FFmpegServiceFactory : IFFmpegServiceFactory
