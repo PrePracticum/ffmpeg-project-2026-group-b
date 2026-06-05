@@ -30,6 +30,9 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/green-screen", GreenScreen)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
+            app.MapPost("/api/video/subtitles", AddSubtitles)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
         }
 
         private static async Task<IResult> AddWatermark(
@@ -105,7 +108,64 @@ namespace FFmpeg.API.Endpoints
             }
 
         }
+        private static async Task<IResult> AddSubtitles(
+            HttpContext context,
+            [FromForm] SubtitlesDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
 
+            try
+            {
+                if (dto.VideoFile == null || dto.SubtitlesFile == null)
+                {
+                    return Results.BadRequest("Video file and subtitles file are required");
+                }
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string subtitlesFileName = await fileService.SaveUploadedFileAsync(dto.SubtitlesFile);
+
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new List<string> { videoFileName, subtitlesFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateSubtitlesCommand();
+                    var result = await command.ExecuteAsync(new SubtitlesModel
+                    {
+                        InputFile = videoFileName,
+                        SubtitlesFile = subtitlesFileName,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg subtitles command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        return Results.Problem("Failed to add subtitles: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(fileBytes, "video/mp4", "subtitled_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing subtitles request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in AddSubtitles endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
         private static async Task<IResult> ReverseVideo(
             HttpContext context,
             [FromForm] ReverseVideoDto dto)
