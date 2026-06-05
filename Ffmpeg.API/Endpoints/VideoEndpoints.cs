@@ -27,6 +27,9 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/animatedText", AddAnimatedText)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
+            app.MapPost("/api/video/green-screen", GreenScreen)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
         }
 
         private static async Task<IResult> AddWatermark(
@@ -160,7 +163,7 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
-        private static async Task<IResult>AddAnimatedText(
+        private static async Task<IResult> AddAnimatedText(
             HttpContext context,
             [FromForm] AnimatedTextDto dto)
         {
@@ -231,6 +234,65 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
-    }
 
+
+        private static async Task<IResult> GreenScreen(
+            HttpContext context,
+            [FromForm] GreenScreenDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.InputFile == null || dto.BackgroundFile == null)
+                {
+                    return Results.BadRequest("Input video and background video are required");
+                }
+
+                string inputFileName = await fileService.SaveUploadedFileAsync(dto.InputFile);
+                string backgroundFileName = await fileService.SaveUploadedFileAsync(dto.BackgroundFile);
+
+                string extension = Path.GetExtension(dto.InputFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new List<string> { inputFileName, backgroundFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateGreenScreenCommand();
+                    var result = await command.ExecuteAsync(new GreenScreenModel
+                    {
+                        InputFile = inputFileName,
+                        BackgroundFile = backgroundFileName,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg green-screen command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        return Results.Problem("Failed to process green screen: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(fileBytes, "video/mp4", "greenscreen_" + dto.InputFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing green screen request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in GreenScreen endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
+    }
 }
