@@ -163,7 +163,7 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
-        private static async Task<IResult>AddAnimatedText(
+        private static async Task<IResult> AddAnimatedText(
             HttpContext context,
             [FromForm] AnimatedTextDto dto)
         {
@@ -234,7 +234,6 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
-    }
 
 
         private static async Task<IResult> GreenScreen(
@@ -296,3 +295,4 @@ namespace FFmpeg.API.Endpoints
             }
         }
     }
+}
