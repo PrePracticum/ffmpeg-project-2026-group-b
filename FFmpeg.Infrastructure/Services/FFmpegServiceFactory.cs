@@ -16,6 +16,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<WatermarkModel> CreateWatermarkCommand();
 
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
+        ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
 
     }
 
@@ -43,6 +44,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ReverseVideoModel> CreateReverseVideoCommand()
         {
             return new ReverseVideoCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<AnimatedTextModel> CreateAnimatedTextCommand()
+        {
+            return new AnimatedTextCommand(_executor, _commandBuilder);
         }
     }
 }
