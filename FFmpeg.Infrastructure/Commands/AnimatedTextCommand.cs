@@ -30,7 +30,7 @@ namespace FFmpeg.Infrastructure.Commands
                 {
                     case AnimationType.MoveLeft:
                         // Text moves from right to left across screen
-                        xExpression = $"if(lt(t\\,5)\\,w+t*{model.AnimationSpeed}\\,w-50)";
+                        xExpression = $"if(lt(t,5),w+t*{model.AnimationSpeed},w-50)";
                         break;
                     case AnimationType.MoveRight:
                         // Text moves from left to right
@@ -38,18 +38,20 @@ namespace FFmpeg.Infrastructure.Commands
                         break;
                     case AnimationType.SlideDown:
                         // Text slides down from top
-                        yExpression = $"if(lt(t\\,5)\\,0+t*{model.AnimationSpeed}\\,h/2)";
+                        yExpression = $"if(lt(t,5),0+t*{model.AnimationSpeed},h/2)";
                         break;
                     case AnimationType.SlideUp:
                         // Text slides up from bottom
-                        yExpression = $"if(lt(t\\,5)\\,h-t*{model.AnimationSpeed}\\,h/2)";
+                        yExpression = $"if(lt(t,5),h-t*{model.AnimationSpeed},h/2)";
                         break;
                 }
             }
 
             // Build the drawtext filter with animation support
-            // Commas inside expressions must be escaped with backslash
-            string drawTextFilter = $"drawtext=text='{model.Text}':x={xExpression}:y={yExpression}:fontsize={model.FontSize}:fontcolor={model.Color}";
+            // Escape special characters for shell/command line
+
+            string escapedText = EscapeFilterText(model.Text);
+            string drawTextFilter = $"drawtext=text='{escapedText}':x={xExpression}:y={yExpression}:fontsize={model.FontSize}:fontcolor={model.Color}";
 
             CommandBuilder = _commandBuilder
                 .SetInput(model.InputFile)
@@ -57,6 +59,17 @@ namespace FFmpeg.Infrastructure.Commands
                 .SetOutput(model.OutputFile);
 
             return await RunAsync();
+        }
+
+        private string EscapeFilterText(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+            
+            // Escape special characters for drawtext filter
+            return text
+                .Replace("\\", "\\\\")
+                .Replace("'", "\\'");
         }
     }
   

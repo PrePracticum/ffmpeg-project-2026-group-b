@@ -174,11 +174,16 @@ namespace FFmpeg.API.Endpoints
                 {
                     return Results.BadRequest("Video file is required");
                 }
+                if (string.IsNullOrWhiteSpace(dto.Text))
+                {
+                    return Results.BadRequest("Text is required");
+                }
 
                 string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
 
                 string extension = Path.GetExtension(dto.VideoFile.FileName);
                 string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
 
                 List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
 
@@ -188,6 +193,7 @@ namespace FFmpeg.API.Endpoints
                     var result = await command.ExecuteAsync(new AnimatedTextModel
                     {
                         InputFile = videoFileName,
+
                         Text = dto.Text,
                         Color = dto.Color,
                         FontSize = dto.FontSize,
