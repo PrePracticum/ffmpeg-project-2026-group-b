@@ -22,7 +22,8 @@ namespace Ffmpeg.Command.Commands
                 .SetInput(model.InputFile)
                 .AddOption($"-ss {model.StartTime}")
                 .AddOption($"-to {model.EndTime}")
-                .AddOption("-c copy")
+                .AddOption("-c:v libx264")
+                .AddOption("-c:a aac")
                 .SetOutput(model.OutputFile, false); 
 
             return await RunAsync();
