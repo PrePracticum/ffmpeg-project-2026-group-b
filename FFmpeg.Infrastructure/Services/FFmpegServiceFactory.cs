@@ -5,6 +5,7 @@ using FFmpeg.Infrastructure.Commands;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -18,8 +19,9 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
         ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
 
+        ICommand<AudioRemovalModel> CreateAudioRemovalCommand();
         ICommand<GreenScreenModel> CreateGreenScreenCommand();
-        
+
     }
 
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -56,6 +58,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<GreenScreenModel> CreateGreenScreenCommand()
         {
             return new GreenScreenCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<AudioRemovalModel> CreateAudioRemovalCommand()
+        {
+            return new AudioRemovalCommand(_executor, _commandBuilder);
         }
     }
 }
