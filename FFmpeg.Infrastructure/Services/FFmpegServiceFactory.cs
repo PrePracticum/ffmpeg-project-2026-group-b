@@ -19,6 +19,8 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
 
         ICommand<GreenScreenModel> CreateGreenScreenCommand();
+
+        ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
         
     }
 
@@ -56,6 +58,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<GreenScreenModel> CreateGreenScreenCommand()
         {
             return new GreenScreenCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<ChangeResolutionModel> CreateChangeResolutionCommand()
+        {
+            return new ChangeResolutionCommand(_executor, _commandBuilder);
         }
     }
 }

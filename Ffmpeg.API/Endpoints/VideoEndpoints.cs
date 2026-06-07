@@ -30,6 +30,9 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/green-screen", GreenScreen)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
+            app.MapPost("/api/video/change-resolution", ChangeResolution)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
         }
 
         private static async Task<IResult> AddWatermark(
@@ -294,5 +297,81 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+        private static async Task<IResult> ChangeResolution(
+            HttpContext context,
+            [FromForm] ChangeResolutionDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                    // 1. בדיקת תקינות הקלט
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                if (dto.Width <= 0 || dto.Height <= 0)
+                {
+                    return Results.BadRequest("Width and Height must be greater than 0");
+                }
+
+                    // 2. שמירת קובץ הווידאו שהועלה לתיקייה זמנית
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+
+                    // 3. יצירת שם ייחודי לקובץ הפלט (עם אותה סיומת)
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                    // מעקב אחר הקבצים כדי שנוכל למחוק אותם מהשרת בסיום
+                List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
+
+                try
+                {
+                        // 4. יצירת פקודת שינוי הרזולוציה והרצתה
+                    var command = ffmpegService.CreateChangeResolutionCommand();
+                    var result = await command.ExecuteAsync(new ChangeResolutionModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName,
+                        Width = dto.Width,
+                        Height = dto.Height
+                    });
+
+                        // 5. בדיקה אם הפקודה נכשלה
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg change resolution failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        return Results.Problem("Failed to change resolution: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                        // 6. קריאת קובץ התוצאה המוכן
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+
+                        // 7. ניקוי הקבצים הזמניים מהשרת
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                        // 8. החזרת הקובץ החדש למשתמש
+                    return Results.File(fileBytes, "video/mp4", "resized_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing change resolution request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ChangeResolution endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
+        
     }
 }
+    
+
