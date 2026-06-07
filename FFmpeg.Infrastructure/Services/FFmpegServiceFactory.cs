@@ -20,6 +20,10 @@ namespace FFmpeg.Infrastructure.Services
 
         ICommand<GreenScreenModel> CreateGreenScreenCommand();
 
+        ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
+        
+        ICommand<CropVideoModel> CreateCropVideoCommand();
+
         ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
     }
 
@@ -57,6 +61,16 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<GreenScreenModel> CreateGreenScreenCommand()
         {
             return new GreenScreenCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<ChangeResolutionModel> CreateChangeResolutionCommand()
+        {
+            return new ChangeResolutionCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<CropVideoModel> CreateCropVideoCommand()
+        {
+            return new CropVideoCommand(_executor, _commandBuilder);
         }
 
         public ICommand<ChangeSpeedModel> CreateChangeSpeedCommand()

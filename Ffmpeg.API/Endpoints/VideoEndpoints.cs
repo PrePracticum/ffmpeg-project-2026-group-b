@@ -26,10 +26,16 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/reverse", ReverseVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
+            app.MapPost("/api/video/crop", CropVideo)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
             app.MapPost("/api/video/animatedText", AddAnimatedText)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
             app.MapPost("/api/video/green-screen", GreenScreen)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
+            app.MapPost("/api/video/change-resolution", ChangeResolution)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
             app.MapPost("/api/video/change-speed", ChangeSpeed)
@@ -168,6 +174,90 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+        private static async Task<IResult> CropVideo(
+    HttpContext context,
+    [FromForm] CropVideoDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                logger.LogInformation("Original FileName: {FileName}", dto.VideoFile.FileName);
+                logger.LogInformation("ContentType: {ContentType}", dto.VideoFile.ContentType);
+                logger.LogInformation("Length: {Length}", dto.VideoFile.Length);
+                string videoFileName =
+                    await fileService.SaveUploadedFileAsync(dto.VideoFile);
+
+                string extension =
+                    Path.GetExtension(dto.VideoFile.FileName);
+
+                string outputFileName =
+                    await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup =
+                    new() { videoFileName, outputFileName };
+
+                try
+                {
+                    var command =
+                        ffmpegService.CreateCropVideoCommand();
+
+                    var result =
+                        await command.ExecuteAsync(
+                            new CropVideoModel
+                            {
+                                InputFile = videoFileName,
+                                OutputFile = outputFileName,
+                                Width = dto.Width,
+                                Height = dto.Height,
+                                X = dto.X,
+                                Y = dto.Y
+                            });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError(
+                            "FFmpeg crop command failed: {ErrorMessage}",
+                            result.ErrorMessage);
+
+                        return Results.Problem(
+                            "Failed to crop video: " +
+                            result.ErrorMessage,
+                            statusCode: 500);
+                    }
+
+                    byte[] fileBytes =
+                        await fileService.GetOutputFileAsync(outputFileName);
+
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(
+                        fileBytes,
+                        "video/mp4",
+                        "cropped_" + dto.VideoFile.FileName);
+                }
+                catch
+                {
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in CropVideo endpoint");
+
+                return Results.Problem(
+                    "An error occurred: " + ex.Message,
+                    statusCode: 500);
+            }
+        }
         private static async Task<IResult> AddAnimatedText(
             HttpContext context,
             [FromForm] AnimatedTextDto dto)
@@ -299,6 +389,74 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+        private static async Task<IResult> ChangeResolution(
+            HttpContext context,
+            [FromForm] ChangeResolutionDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                if (dto.Width <= 0 || dto.Height <= 0)
+                {
+                    return Results.BadRequest("Width and Height must be greater than 0");
+                }
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateChangeResolutionCommand();
+                    var result = await command.ExecuteAsync(new ChangeResolutionModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName,
+                        Width = dto.Width,
+                        Height = dto.Height
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg change resolution failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        return Results.Problem("Failed to change resolution: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(fileBytes, "video/mp4", "resized_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing change resolution request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ChangeResolution endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
+        
+
+    
+
 
         private static async Task<IResult> ChangeSpeed(
             HttpContext context,
@@ -310,7 +468,6 @@ namespace FFmpeg.API.Endpoints
 
             try
             {
-                // 1. וולידציה על הקלט
                 if (dto.VideoFile == null)
                 {
                     return Results.BadRequest("Video file is required");
@@ -321,19 +478,15 @@ namespace FFmpeg.API.Endpoints
                     return Results.BadRequest("Speed multiplier must be greater than zero");
                 }
 
-                // 2. שמירת הקובץ הזמני (מחזיר רק את שם הקובץ, ה-Builder כבר יודע להשלים נתיב מלא)
                 string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
 
-                // 3. יצירת שם ייחודי עבור קובץ הפלט
                 string extension = Path.GetExtension(dto.VideoFile.FileName);
                 string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
 
-                // רשימת קבצים לניקוי בסיום התהליך (קלט ופלט)
                 List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
 
                 try
                 {
-                    // 4. יצירת פקודת שינוי המהירות והרצתה
                     var command = ffmpegService.CreateChangeSpeedCommand();
                     var result = await command.ExecuteAsync(new ChangeSpeedModel
                     {
@@ -349,19 +502,15 @@ namespace FFmpeg.API.Endpoints
                         return Results.Problem("Failed to change video speed: " + result.ErrorMessage, statusCode: 500);
                     }
 
-                    // 5. קריאת מערך הבייטים של קובץ המוצר המוגמר
                     byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
 
-                    // 6. ניקוי הקבצים הזמניים ברקע (Fire and Forget כמו בשאר הפונקציות שלך)
                     _ = fileService.CleanupTempFilesAsync(filesToCleanup);
 
-                    // 7. החזרת הקובץ למשתמש
                     return Results.File(fileBytes, "video/mp4", "speed_" + dto.VideoFile.FileName);
                 }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Error processing change speed request");
-                    // ניקוי קבצים במקרה של קריסה פנימית
                     _ = fileService.CleanupTempFilesAsync(filesToCleanup);
                     throw;
                 }
@@ -373,4 +522,4 @@ namespace FFmpeg.API.Endpoints
             }
         }
     }
-}
+    }
