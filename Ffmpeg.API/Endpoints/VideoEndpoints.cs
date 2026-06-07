@@ -11,6 +11,8 @@ using FFmpeg.Core.Models;
 using FFmpeg.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 
+
+
 namespace FFmpeg.API.Endpoints
 {
     public static class VideoEndpoints
@@ -30,6 +32,9 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/green-screen", GreenScreen)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
+            app.MapPost("/api/video/change-speed", ChangeSpeed)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
 
         private static async Task<IResult> AddWatermark(
@@ -291,6 +296,79 @@ namespace FFmpeg.API.Endpoints
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error in GreenScreen endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
+
+        private static async Task<IResult> ChangeSpeed(
+            HttpContext context,
+            [FromForm] ChangeSpeedDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                // 1. וולידציה על הקלט
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                if (dto.SpeedMultiplier <= 0)
+                {
+                    return Results.BadRequest("Speed multiplier must be greater than zero");
+                }
+
+                // 2. שמירת הקובץ הזמני (מחזיר רק את שם הקובץ, ה-Builder כבר יודע להשלים נתיב מלא)
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+
+                // 3. יצירת שם ייחודי עבור קובץ הפלט
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                // רשימת קבצים לניקוי בסיום התהליך (קלט ופלט)
+                List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
+
+                try
+                {
+                    // 4. יצירת פקודת שינוי המהירות והרצתה
+                    var command = ffmpegService.CreateChangeSpeedCommand();
+                    var result = await command.ExecuteAsync(new ChangeSpeedModel
+                    {
+                        InputFile = videoFileName,
+                        SpeedMultiplier = dto.SpeedMultiplier,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg change speed command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        return Results.Problem("Failed to change video speed: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    // 5. קריאת מערך הבייטים של קובץ המוצר המוגמר
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+
+                    // 6. ניקוי הקבצים הזמניים ברקע (Fire and Forget כמו בשאר הפונקציות שלך)
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    // 7. החזרת הקובץ למשתמש
+                    return Results.File(fileBytes, "video/mp4", "speed_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing change speed request");
+                    // ניקוי קבצים במקרה של קריסה פנימית
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ChangeSpeed endpoint");
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }

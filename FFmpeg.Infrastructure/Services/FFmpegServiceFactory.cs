@@ -19,7 +19,8 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
 
         ICommand<GreenScreenModel> CreateGreenScreenCommand();
-        
+
+        ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
     }
 
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -56,6 +57,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<GreenScreenModel> CreateGreenScreenCommand()
         {
             return new GreenScreenCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<ChangeSpeedModel> CreateChangeSpeedCommand()
+        {
+            return new ChangeSpeedCommand(_executor, _commandBuilder);
         }
     }
 }
