@@ -11,6 +11,8 @@ using FFmpeg.Core.Models;
 using FFmpeg.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 
+
+
 namespace FFmpeg.API.Endpoints
 {
     public static class VideoEndpoints
@@ -36,6 +38,9 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/change-resolution", ChangeResolution)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
+            app.MapPost("/api/video/change-speed", ChangeSpeed)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
 
         private static async Task<IResult> AddWatermark(
@@ -449,7 +454,72 @@ namespace FFmpeg.API.Endpoints
             }
         }
         
-    }
-}
+
     
 
+
+        private static async Task<IResult> ChangeSpeed(
+            HttpContext context,
+            [FromForm] ChangeSpeedDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                if (dto.SpeedMultiplier <= 0)
+                {
+                    return Results.BadRequest("Speed multiplier must be greater than zero");
+                }
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateChangeSpeedCommand();
+                    var result = await command.ExecuteAsync(new ChangeSpeedModel
+                    {
+                        InputFile = videoFileName,
+                        SpeedMultiplier = dto.SpeedMultiplier,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg change speed command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        return Results.Problem("Failed to change video speed: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(fileBytes, "video/mp4", "speed_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing change speed request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ChangeSpeed endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
+    }
+    }
