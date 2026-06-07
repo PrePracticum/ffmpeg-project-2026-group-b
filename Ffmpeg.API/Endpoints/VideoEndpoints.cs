@@ -394,7 +394,6 @@ namespace FFmpeg.API.Endpoints
 
             try
             {
-                    // 1. בדיקת תקינות הקלט
                 if (dto.VideoFile == null)
                 {
                     return Results.BadRequest("Video file is required");
@@ -405,19 +404,15 @@ namespace FFmpeg.API.Endpoints
                     return Results.BadRequest("Width and Height must be greater than 0");
                 }
 
-                    // 2. שמירת קובץ הווידאו שהועלה לתיקייה זמנית
                 string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
 
-                    // 3. יצירת שם ייחודי לקובץ הפלט (עם אותה סיומת)
                 string extension = Path.GetExtension(dto.VideoFile.FileName);
                 string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
 
-                    // מעקב אחר הקבצים כדי שנוכל למחוק אותם מהשרת בסיום
                 List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
 
                 try
                 {
-                        // 4. יצירת פקודת שינוי הרזולוציה והרצתה
                     var command = ffmpegService.CreateChangeResolutionCommand();
                     var result = await command.ExecuteAsync(new ChangeResolutionModel
                     {
@@ -427,7 +422,6 @@ namespace FFmpeg.API.Endpoints
                         Height = dto.Height
                     });
 
-                        // 5. בדיקה אם הפקודה נכשלה
                     if (!result.IsSuccess)
                     {
                         logger.LogError("FFmpeg change resolution failed: {ErrorMessage}, Command: {Command}",
@@ -435,13 +429,10 @@ namespace FFmpeg.API.Endpoints
                         return Results.Problem("Failed to change resolution: " + result.ErrorMessage, statusCode: 500);
                     }
 
-                        // 6. קריאת קובץ התוצאה המוכן
                     byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
 
-                        // 7. ניקוי הקבצים הזמניים מהשרת
                     _ = fileService.CleanupTempFilesAsync(filesToCleanup);
 
-                        // 8. החזרת הקובץ החדש למשתמש
                     return Results.File(fileBytes, "video/mp4", "resized_" + dto.VideoFile.FileName);
                 }
                 catch (Exception ex)
