@@ -22,6 +22,7 @@ namespace FFmpeg.Infrastructure.Services
 
         ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
         
+        ICommand<CropVideoModel> CreateCropVideoCommand();
     }
 
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -63,6 +64,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ChangeResolutionModel> CreateChangeResolutionCommand()
         {
             return new ChangeResolutionCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<CropVideoModel> CreateCropVideoCommand()
+        {
+            return new CropVideoCommand(_executor, _commandBuilder);
         }
     }
 }
