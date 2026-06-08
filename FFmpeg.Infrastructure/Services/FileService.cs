@@ -2,6 +2,7 @@
 using FFmpeg.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using System.Globalization;
 
 namespace FFmpeg.Infrastructure.Services
 {
@@ -13,6 +14,7 @@ namespace FFmpeg.Infrastructure.Services
         private readonly string _inputPath;
         private readonly string _outputPath;
         private readonly string _tempPath;
+
 
         public FileService(IConfiguration configuration, ILogger logger)
         {
@@ -156,7 +158,8 @@ namespace FFmpeg.Infrastructure.Services
         /// </summary>
         public async Task<string> GenerateUniqueFileNameAsync(string extension)
         {
-            string timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+            string timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss",
+        CultureInfo.InvariantCulture);
             string random = Guid.NewGuid().ToString("N").Substring(0, 8);
             string fileName = $"{timestamp}_{random}{extension}";
 
