@@ -70,6 +70,7 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<SubtitlesModel> CreateSubtitlesCommand()
         {
             return new SubtitlesCommand(_executor, _commandBuilder);
+         }
 
 
         public ICommand<ChangeResolutionModel> CreateChangeResolutionCommand()
