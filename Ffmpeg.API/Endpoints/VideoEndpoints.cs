@@ -31,7 +31,6 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/crop", CropVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
-                .WithMetadata(new RequestSizeLimitAttribute(104857600));
 
             app.MapPost("/api/video/cut", CutVideo)
                .DisableAntiforgery()
@@ -54,8 +53,6 @@ namespace FFmpeg.API.Endpoints
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
             app.MapPost("/api/video/change-speed", ChangeSpeed)
                 .DisableAntiforgery()
-                .WithMetadata(new RequestSizeLimitAttribute(104857600));
-
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
 
@@ -581,8 +578,8 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
-    }
-    }
+    
+    
 
         private static async Task<IResult> CutVideo(
          HttpContext context,
