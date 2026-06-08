@@ -12,6 +12,8 @@ using FFmpeg.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 
 
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FFmpeg.API.Endpoints
 {
@@ -21,7 +23,7 @@ namespace FFmpeg.API.Endpoints
         {
             app.MapPost("/api/video/watermark", AddWatermark)
                 .DisableAntiforgery()
-                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
 
             app.MapPost("/api/video/reverse", ReverseVideo)
                 .DisableAntiforgery()
@@ -29,9 +31,15 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/crop", CropVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
+            app.MapPost("/api/video/cut", CutVideo)
+               .DisableAntiforgery()
+               .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
             app.MapPost("/api/video/animatedText", AddAnimatedText)
                 .DisableAntiforgery()
-                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
             app.MapPost("/api/video/green-screen", GreenScreen)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
@@ -46,7 +54,6 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/change-speed", ChangeSpeed)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
-
         }
 
         private static async Task<IResult> AddWatermark(
@@ -55,30 +62,25 @@ namespace FFmpeg.API.Endpoints
         {
             var fileService = context.RequestServices.GetRequiredService<IFileService>();
             var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
-            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>(); // or a specific logger type
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
 
             try
             {
-                // Validate request
                 if (dto.VideoFile == null || dto.WatermarkFile == null)
                 {
                     return Results.BadRequest("Video file and watermark file are required");
                 }
 
-                // Save uploaded files
                 string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
                 string watermarkFileName = await fileService.SaveUploadedFileAsync(dto.WatermarkFile);
 
-                // Generate output filename
                 string extension = Path.GetExtension(dto.VideoFile.FileName);
                 string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
 
-                // Track files to clean up
                 List<string> filesToCleanup = new List<string> { videoFileName, watermarkFileName, outputFileName };
 
                 try
                 {
-                    // Create and execute the watermark command
                     var command = ffmpegService.CreateWatermarkCommand();
                     var result = await command.ExecuteAsync(new WatermarkModel
                     {
@@ -98,19 +100,15 @@ namespace FFmpeg.API.Endpoints
                         return Results.Problem("Failed to add watermark: " + result.ErrorMessage, statusCode: 500);
                     }
 
-                    // Read the output file
                     byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
 
-                    // Clean up temporary files
                     _ = fileService.CleanupTempFilesAsync(filesToCleanup);
 
-                    // Return the file
                     return Results.File(fileBytes, "video/mp4", dto.VideoFile.FileName);
                 }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Error processing watermark request");
-                    // Clean up on error
                     _ = fileService.CleanupTempFilesAsync(filesToCleanup);
                     throw;
                 }
@@ -321,6 +319,7 @@ namespace FFmpeg.API.Endpoints
                     statusCode: 500);
             }
         }
+
         private static async Task<IResult> AddAnimatedText(
             HttpContext context,
             [FromForm] AnimatedTextDto dto)
@@ -341,10 +340,8 @@ namespace FFmpeg.API.Endpoints
                 }
 
                 string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
-
                 string extension = Path.GetExtension(dto.VideoFile.FileName);
                 string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
-
 
                 List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
 
@@ -354,7 +351,6 @@ namespace FFmpeg.API.Endpoints
                     var result = await command.ExecuteAsync(new AnimatedTextModel
                     {
                         InputFile = videoFileName,
-
                         Text = dto.Text,
                         Color = dto.Color,
                         FontSize = dto.FontSize,
@@ -374,7 +370,6 @@ namespace FFmpeg.API.Endpoints
                     }
 
                     byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
-
                     _ = fileService.CleanupTempFilesAsync(filesToCleanup);
 
                     return Results.File(fileBytes, "video/mp4", "animated_" + dto.VideoFile.FileName);
@@ -392,7 +387,6 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
-
 
         private static async Task<IResult> GreenScreen(
             HttpContext context,
@@ -584,5 +578,74 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+    
+    
+
+        private static async Task<IResult> CutVideo(
+         HttpContext context,
+         [FromForm] CutVideoDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                    return Results.BadRequest("Video file is required");
+                if (string.IsNullOrEmpty(dto.StartTime) || string.IsNullOrEmpty(dto.EndTime))
+                    return Results.BadRequest("Start time and end time are required");
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                try
+                {
+                    var command = ffmpegService.CreateCutVideoCommand();
+                    var result = await command.ExecuteAsync(new CutVideoModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName,
+                        StartTime = dto.StartTime,
+                        EndTime = dto.EndTime
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg cut command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+
+                        await fileService.CleanupTempFilesAsync(new List<string> { videoFileName, outputFileName });
+                        return Results.Problem("Failed to cut video: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    string fullOutputPath = fileService.GetFullOutputPath(outputFileName);
+
+                    var fileStream = new FileStream(
+                        fullOutputPath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.Read,
+                        bufferSize: 4096,
+                        useAsync: true);
+
+                    await fileService.CleanupTempFilesAsync(new List<string> { videoFileName });
+
+                    return Results.File(fileStream, "video/mp4", "cut_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing cut video request");
+                    await fileService.CleanupTempFilesAsync(new List<string> { videoFileName, outputFileName });
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in CutVideo endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
     }
-    }
+}
