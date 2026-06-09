@@ -106,14 +106,14 @@ namespace FFmpeg.API.Endpoints
 
                     byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
 
-                    await fileService.CleanupTempFilesAsync(filesToCleanup);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
 
                     return Results.File(fileBytes, "video/mp4", dto.VideoFile.FileName);
                 }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Error processing watermark request");
-                    await fileService.CleanupTempFilesAsync(filesToCleanup);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
                     throw;
                 }
             }
