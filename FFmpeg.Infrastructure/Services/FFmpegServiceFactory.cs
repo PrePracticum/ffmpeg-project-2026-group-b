@@ -15,12 +15,16 @@ namespace FFmpeg.Infrastructure.Services
     public interface IFFmpegServiceFactory
     {
         ICommand<WatermarkModel> CreateWatermarkCommand();
-
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
         ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
 
         ICommand<AudioRemovalModel> CreateAudioRemovalCommand();
+        ICommand<CutVideoModel> CreateCutVideoCommand();
         ICommand<GreenScreenModel> CreateGreenScreenCommand();
+      
+        ICommand<SubtitlesModel> CreateSubtitlesCommand();
+
+
 
         ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
         
@@ -68,6 +72,17 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<AudioRemovalModel> CreateAudioRemovalCommand()
         {
             return new AudioRemovalCommand(_executor, _commandBuilder);
+        public ICommand<CutVideoModel> CreateCutVideoCommand()
+        {
+            return new CutVideoCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<SubtitlesModel> CreateSubtitlesCommand()
+        {
+            return new SubtitlesCommand(_executor, _commandBuilder);
+         }
+
+
         public ICommand<ChangeResolutionModel> CreateChangeResolutionCommand()
         {
             return new ChangeResolutionCommand(_executor, _commandBuilder);
@@ -81,6 +96,7 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ChangeSpeedModel> CreateChangeSpeedCommand()
         {
             return new ChangeSpeedCommand(_executor, _commandBuilder);
+
         }
     }
 }
