@@ -28,6 +28,8 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<CropVideoModel> CreateCropVideoCommand();
 
         ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
+
+        ICommand<ThumbnailModel> CreateThumbnailCommand();
     }
 
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -91,6 +93,11 @@ namespace FFmpeg.Infrastructure.Services
         {
             return new ChangeSpeedCommand(_executor, _commandBuilder);
 
+        }
+
+        public ICommand<ThumbnailModel> CreateThumbnailCommand()
+        {
+            return new ThumbnailCommand(_executor, _commandBuilder);
         }
     }
 }
