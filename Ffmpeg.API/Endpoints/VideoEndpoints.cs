@@ -28,6 +28,7 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/reverse", ReverseVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
+
             app.MapPost("/api/video/crop", CropVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
@@ -38,10 +39,16 @@ namespace FFmpeg.API.Endpoints
 
             app.MapPost("/api/video/animatedText", AddAnimatedText)
                 .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
 
             app.MapPost("/api/video/green-screen", GreenScreen)
                 .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
+
+            app.MapPost("/api/video/remove-audio", RemoveAudio)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB                                                                      
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
 
             app.MapPost("/api/video/subtitles", AddSubtitles)
@@ -122,7 +129,6 @@ namespace FFmpeg.API.Endpoints
                 logger.LogError(ex, "Error in AddWatermark endpoint");
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
-
         }
         private static async Task<IResult> AddSubtitles(
             HttpContext context,
@@ -239,6 +245,7 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
         private static async Task<IResult> CropVideo(
     HttpContext context,
     [FromForm] CropVideoDto dto)
@@ -450,6 +457,10 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
+        private static async Task<IResult> RemoveAudio(
+            HttpContext context,
+            [FromForm] AudioRemovalDto dto)
         private static async Task<IResult> ChangeResolution(
             HttpContext context,
             [FromForm] ChangeResolutionDto dto)
@@ -534,6 +545,9 @@ namespace FFmpeg.API.Endpoints
                     return Results.BadRequest("Video file is required");
                 }
 
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
                 if (dto.SpeedMultiplier <= 0)
                 {
                     return Results.BadRequest("Speed multiplier must be greater than zero");
@@ -548,6 +562,10 @@ namespace FFmpeg.API.Endpoints
 
                 try
                 {
+                    var command = ffmpegService.CreateAudioRemovalCommand();
+                    var result = await command.ExecuteAsync(new AudioRemovalModel
+                    {
+                        InputFile = videoFileName,
                     var command = ffmpegService.CreateChangeSpeedCommand();
                     var result = await command.ExecuteAsync(new ChangeSpeedModel
                     {
@@ -558,6 +576,17 @@ namespace FFmpeg.API.Endpoints
 
                     if (!result.IsSuccess)
                     {
+                        logger.LogError("FFmpeg remove audio failed: {ErrorMessage}", result.ErrorMessage);
+                        return Results.Problem("Failed to remove audio: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(fileBytes, "video/mp4", "muted_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
                         logger.LogError("FFmpeg change speed command failed: {ErrorMessage}, Command: {Command}",
                             result.ErrorMessage, result.CommandExecuted);
                         return Results.Problem("Failed to change video speed: " + result.ErrorMessage, statusCode: 500);
@@ -578,6 +607,7 @@ namespace FFmpeg.API.Endpoints
             }
             catch (Exception ex)
             {
+                logger.LogError(ex, "Error in RemoveAudio endpoint");
                 logger.LogError(ex, "Error in ChangeSpeed endpoint");
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
@@ -711,5 +741,7 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+    }
+}
     }
 }
