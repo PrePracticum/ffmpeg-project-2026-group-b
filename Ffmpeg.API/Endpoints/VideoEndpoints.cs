@@ -54,7 +54,9 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/change-speed", ChangeSpeed)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
-                app.MapPost("/api/video/rotate", RotateVideo)
+                app.MapPost("/api/video/rotate", RotateVideo);
+
+            app.MapPost("/api/video/thumbnail", CreateThumbnail)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
@@ -654,6 +656,14 @@ namespace FFmpeg.API.Endpoints
             HttpContext context,
             [FromForm] RotationRequestDto dto)
         {
+        }
+
+        private static async Task<IResult> CreateThumbnail(
+        HttpContext context,
+        [FromForm] ThumbnailDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
             var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
 
             try
@@ -674,6 +684,52 @@ namespace FFmpeg.API.Endpoints
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error in RotateVideo endpoint");
+                if (dto.VideoFile == null)
+                    return Results.BadRequest("Video file is required");
+                if (string.IsNullOrEmpty(dto.TimePosition))
+                    return Results.BadRequest("Time position is required");
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(".jpg");
+
+                List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateThumbnailCommand();
+                    var result = await command.ExecuteAsync(new ThumbnailModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName,
+                        TimePosition = dto.TimePosition
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg thumbnail command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+
+                        _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                        return Results.Problem("Failed to create thumbnail: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(fileBytes, "image/jpeg", Path.GetFileNameWithoutExtension(dto.VideoFile.FileName) + "_thumb.jpg");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing thumbnail request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in CreateThumbnail endpoint");
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
