@@ -54,7 +54,9 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/change-speed", ChangeSpeed)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
-
+             app.MapPost("/api/video/rotate", RotateVideo)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
             app.MapPost("/api/video/thumbnail", CreateThumbnail)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
@@ -651,10 +653,62 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+    private static async Task<IResult> RotateVideo(
+            HttpContext context,
+            [FromForm] RotationRequestDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
+
+                try
+                {
+                    string inputPath = fileService.GetFullOutputPath(videoFileName);
+                    string outputPath = fileService.GetFullOutputPath(outputFileName);
+
+                    var rotationService = new RotationService();
+                    bool success = rotationService.RotateVideo(inputPath, dto.RotationAngle, outputPath);
+
+                    if (!success)
+                    {
+                        logger.LogError("FFmpeg rotation command failed");
+                        return Results.Problem("Failed to rotate video", statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(fileBytes, "video/mp4", "rotated_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing rotation request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in RotateVideo endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
 
         private static async Task<IResult> CreateThumbnail(
-        HttpContext context,
-        [FromForm] ThumbnailDto dto)
+            HttpContext context,
+            [FromForm] ThumbnailDto dto)
         {
             var fileService = context.RequestServices.GetRequiredService<IFileService>();
             var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
@@ -668,7 +722,6 @@ namespace FFmpeg.API.Endpoints
                     return Results.BadRequest("Time position is required");
 
                 string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
-
                 string outputFileName = await fileService.GenerateUniqueFileNameAsync(".jpg");
 
                 List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
@@ -693,7 +746,6 @@ namespace FFmpeg.API.Endpoints
                     }
 
                     byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
-
                     _ = fileService.CleanupTempFilesAsync(filesToCleanup);
 
                     return Results.File(fileBytes, "image/jpeg", Path.GetFileNameWithoutExtension(dto.VideoFile.FileName) + "_thumb.jpg");
