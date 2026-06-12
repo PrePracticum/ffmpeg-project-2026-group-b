@@ -1,23 +1,18 @@
-﻿using Ffmpeg.Command;
+using Ffmpeg.Command;
 using Ffmpeg.Command.Commands;
 using FFmpeg.Core.Models;
 using FFmpeg.Infrastructure.Commands;
 using Microsoft.Extensions.Configuration;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.IO;
 
 namespace FFmpeg.Infrastructure.Services
 {
     public interface IFFmpegServiceFactory
     {
         ICommand<WatermarkModel> CreateWatermarkCommand();
-
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
         ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand();
-
     }
 
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -45,9 +40,10 @@ namespace FFmpeg.Infrastructure.Services
         {
             return new ReverseVideoCommand(_executor, _commandBuilder);
         }
+
         public ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand()
         {
-            return new ChangeAudioFormatCommand(_executor, _commandBuilder);
+            return new ChangeAudioFormatCommand(_executor);
         }
     }
 }
