@@ -1,10 +1,11 @@
 using FFmpeg.Core.Models;
 using FFmpeg.Infrastructure.Services;
+using Ffmpeg.Command.Commands;
 using System.Threading.Tasks;
 
 namespace FFmpeg.Infrastructure.Commands
 {
-    public class ChangeAudioFormatCommand
+    public class ChangeAudioFormatCommand : ICommand<ChangeAudioFormatModel>
     {
         private readonly FFmpegExecutor _executor;
 
