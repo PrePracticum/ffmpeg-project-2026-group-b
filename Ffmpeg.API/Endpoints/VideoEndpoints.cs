@@ -67,6 +67,10 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/remove-audio", RemoveAudio)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
+            app.MapPost("/api/video/convert-format", ConvertFormat)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
         }
 
         private static async Task<IResult> AddWatermark(
@@ -826,6 +830,69 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem(
                     "An error occurred: " + ex.Message,
                     statusCode: 500);
+            }
+        }
+
+        private static async Task<IResult> ConvertFormat(
+    HttpContext context,
+    [FromForm] ConvertFormatDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+                if (string.IsNullOrWhiteSpace(dto.OutputFormat))
+                {
+                    return Results.BadRequest("Output format is required (e.g., 'avi', 'mov')");
+                }
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+
+                string formatExtension = dto.OutputFormat.StartsWith(".") ? dto.OutputFormat : "." + dto.OutputFormat;
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(formatExtension);
+
+                List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateConvertFormatCommand();
+                    var result = await command.ExecuteAsync(new ConvertFormatModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg convert format command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        return Results.Problem("Failed to convert video format: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    string originalNameWithoutExtension = Path.GetFileNameWithoutExtension(dto.VideoFile.FileName);
+                    return Results.File(fileBytes, "application/octet-stream", originalNameWithoutExtension + formatExtension);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing convert format request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ConvertFormat endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
     }
