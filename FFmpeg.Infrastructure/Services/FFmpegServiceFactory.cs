@@ -59,6 +59,7 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand()
         {
             return new ChangeAudioFormatCommand(_executor);
+        }
         public ICommand<AnimatedTextModel> CreateAnimatedTextCommand()
         {
             return new AnimatedTextCommand(_executor, _commandBuilder);
