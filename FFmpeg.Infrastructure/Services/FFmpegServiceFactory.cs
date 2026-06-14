@@ -30,6 +30,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
 
         ICommand<ThumbnailModel> CreateThumbnailCommand();
+        ICommand<RemoveAudioModel> CreateRemoveAudioCommand();
     }
 
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -98,6 +99,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ThumbnailModel> CreateThumbnailCommand()
         {
             return new ThumbnailCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<RemoveAudioModel> CreateRemoveAudioCommand()
+        {
+            return new RemoveAudioCommand(_executor, _commandBuilder);
         }
     }
 }
