@@ -18,18 +18,20 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
         ICommand<CutVideoModel> CreateCutVideoCommand();
         ICommand<GreenScreenModel> CreateGreenScreenCommand();
-      
+
         ICommand<SubtitlesModel> CreateSubtitlesCommand();
 
 
 
         ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
-        
+
         ICommand<CropVideoModel> CreateCropVideoCommand();
 
         ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
 
         ICommand<ThumbnailModel> CreateThumbnailCommand();
+
+        ICommand<MergeVideosModel> CreateMergeVideosCommand();
     }
 
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -76,7 +78,7 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<SubtitlesModel> CreateSubtitlesCommand()
         {
             return new SubtitlesCommand(_executor, _commandBuilder);
-         }
+        }
 
 
         public ICommand<ChangeResolutionModel> CreateChangeResolutionCommand()
@@ -98,6 +100,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ThumbnailModel> CreateThumbnailCommand()
         {
             return new ThumbnailCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<MergeVideosModel> CreateMergeVideosCommand()
+        {
+            return new MergeVideosCommand(_executor, _commandBuilder);
         }
     }
 }

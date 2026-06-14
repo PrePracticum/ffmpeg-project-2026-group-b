@@ -10,8 +10,6 @@ using FFmpeg.Core.Interfaces;
 using FFmpeg.Core.Models;
 using FFmpeg.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
-
-
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,6 +26,7 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/reverse", ReverseVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
+
             app.MapPost("/api/video/crop", CropVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
@@ -51,6 +50,7 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/change-resolution", ChangeResolution)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
+
             app.MapPost("/api/video/change-speed", ChangeSpeed)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
@@ -58,6 +58,68 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/thumbnail", CreateThumbnail)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
+            app.MapPost("/api/video/merge", MergeVideos)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
+        }
+
+        private static async Task<IResult> MergeVideos(
+            HttpContext context,
+            [FromForm] MergeVideosDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.FirstVideo == null || dto.SecondVideo == null)
+                {
+                    return Results.BadRequest("Both VideoFile1 and VideoFile2 are required.");
+                }
+
+                string video1Path = await fileService.SaveUploadedFileAsync(dto.FirstVideo);
+                string video2Path = await fileService.SaveUploadedFileAsync(dto.SecondVideo);
+
+                string extension = Path.GetExtension(dto.FirstVideo.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new List<string> { video1Path, video2Path, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateMergeVideosCommand();
+                    var result = await command.ExecuteAsync(new MergeVideosModel
+                    {
+                        FirstVideoPath = video1Path,
+                        SecondVideoPath = video2Path,
+                        OutputVideoPath = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg merge command failed: {ErrorMessage}", result.ErrorMessage);
+                        return Results.Problem("Failed to merge videos: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(fileBytes, "video/mp4", "merged_" + dto.FirstVideo.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing merge videos request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in MergeVideos endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
         }
 
         private static async Task<IResult> AddWatermark(
@@ -122,8 +184,8 @@ namespace FFmpeg.API.Endpoints
                 logger.LogError(ex, "Error in AddWatermark endpoint");
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
-
         }
+
         private static async Task<IResult> AddSubtitles(
             HttpContext context,
             [FromForm] SubtitlesDto dto)
@@ -182,6 +244,7 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
         private static async Task<IResult> ReverseVideo(
             HttpContext context,
             [FromForm] ReverseVideoDto dto)
@@ -239,9 +302,10 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
         private static async Task<IResult> CropVideo(
-    HttpContext context,
-    [FromForm] CropVideoDto dto)
+            HttpContext context,
+            [FromForm] CropVideoDto dto)
         {
             var fileService = context.RequestServices.GetRequiredService<IFileService>();
             var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
@@ -255,58 +319,36 @@ namespace FFmpeg.API.Endpoints
                 }
 
                 logger.LogInformation("Original FileName: {FileName}", dto.VideoFile.FileName);
-                logger.LogInformation("ContentType: {ContentType}", dto.VideoFile.ContentType);
-                logger.LogInformation("Length: {Length}", dto.VideoFile.Length);
-                string videoFileName =
-                    await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
 
-                string extension =
-                    Path.GetExtension(dto.VideoFile.FileName);
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
 
-                string outputFileName =
-                    await fileService.GenerateUniqueFileNameAsync(extension);
-
-                List<string> filesToCleanup =
-                    new() { videoFileName, outputFileName };
+                List<string> filesToCleanup = new() { videoFileName, outputFileName };
 
                 try
                 {
-                    var command =
-                        ffmpegService.CreateCropVideoCommand();
-
-                    var result =
-                        await command.ExecuteAsync(
-                            new CropVideoModel
-                            {
-                                InputFile = videoFileName,
-                                OutputFile = outputFileName,
-                                Width = dto.Width,
-                                Height = dto.Height,
-                                X = dto.X,
-                                Y = dto.Y
-                            });
+                    var command = ffmpegService.CreateCropVideoCommand();
+                    var result = await command.ExecuteAsync(new CropVideoModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName,
+                        Width = dto.Width,
+                        Height = dto.Height,
+                        X = dto.X,
+                        Y = dto.Y
+                    });
 
                     if (!result.IsSuccess)
                     {
-                        logger.LogError(
-                            "FFmpeg crop command failed: {ErrorMessage}",
-                            result.ErrorMessage);
-
-                        return Results.Problem(
-                            "Failed to crop video: " +
-                            result.ErrorMessage,
-                            statusCode: 500);
+                        logger.LogError("FFmpeg crop command failed: {ErrorMessage}", result.ErrorMessage);
+                        return Results.Problem("Failed to crop video: " + result.ErrorMessage, statusCode: 500);
                     }
 
-                    byte[] fileBytes =
-                        await fileService.GetOutputFileAsync(outputFileName);
-
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
                     _ = fileService.CleanupTempFilesAsync(filesToCleanup);
 
-                    return Results.File(
-                        fileBytes,
-                        "video/mp4",
-                        "cropped_" + dto.VideoFile.FileName);
+                    return Results.File(fileBytes, "video/mp4", "cropped_" + dto.VideoFile.FileName);
                 }
                 catch
                 {
@@ -317,10 +359,7 @@ namespace FFmpeg.API.Endpoints
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error in CropVideo endpoint");
-
-                return Results.Problem(
-                    "An error occurred: " + ex.Message,
-                    statusCode: 500);
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
 
@@ -450,6 +489,7 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
         private static async Task<IResult> ChangeResolution(
             HttpContext context,
             [FromForm] ChangeResolutionDto dto)
@@ -514,10 +554,6 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
-        
-
-    
-
 
         private static async Task<IResult> ChangeSpeed(
             HttpContext context,
@@ -582,8 +618,6 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
-    
-    
 
         private static async Task<IResult> CutVideo(
          HttpContext context,
@@ -668,7 +702,6 @@ namespace FFmpeg.API.Endpoints
                     return Results.BadRequest("Time position is required");
 
                 string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
-
                 string outputFileName = await fileService.GenerateUniqueFileNameAsync(".jpg");
 
                 List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
@@ -693,7 +726,6 @@ namespace FFmpeg.API.Endpoints
                     }
 
                     byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
-
                     _ = fileService.CleanupTempFilesAsync(filesToCleanup);
 
                     return Results.File(fileBytes, "image/jpeg", Path.GetFileNameWithoutExtension(dto.VideoFile.FileName) + "_thumb.jpg");
