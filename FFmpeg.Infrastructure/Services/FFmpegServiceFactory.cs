@@ -13,6 +13,21 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<WatermarkModel> CreateWatermarkCommand();
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
         ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand();
+        ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
+        ICommand<CutVideoModel> CreateCutVideoCommand();
+        ICommand<GreenScreenModel> CreateGreenScreenCommand();
+      
+        ICommand<SubtitlesModel> CreateSubtitlesCommand();
+
+
+
+        ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
+        
+        ICommand<CropVideoModel> CreateCropVideoCommand();
+
+        ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
+
+        ICommand<ThumbnailModel> CreateThumbnailCommand();
     }
 
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -44,6 +59,46 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand()
         {
             return new ChangeAudioFormatCommand(_executor);
+        public ICommand<AnimatedTextModel> CreateAnimatedTextCommand()
+        {
+            return new AnimatedTextCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<GreenScreenModel> CreateGreenScreenCommand()
+        {
+            return new GreenScreenCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<CutVideoModel> CreateCutVideoCommand()
+        {
+            return new CutVideoCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<SubtitlesModel> CreateSubtitlesCommand()
+        {
+            return new SubtitlesCommand(_executor, _commandBuilder);
+         }
+
+
+        public ICommand<ChangeResolutionModel> CreateChangeResolutionCommand()
+        {
+            return new ChangeResolutionCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<CropVideoModel> CreateCropVideoCommand()
+        {
+            return new CropVideoCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<ChangeSpeedModel> CreateChangeSpeedCommand()
+        {
+            return new ChangeSpeedCommand(_executor, _commandBuilder);
+
+        }
+
+        public ICommand<ThumbnailModel> CreateThumbnailCommand()
+        {
+            return new ThumbnailCommand(_executor, _commandBuilder);
         }
     }
 }
