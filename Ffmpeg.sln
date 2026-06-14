@@ -3,11 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.13.35806.99
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FFmpeg.API", "FFmpeg.API\FFmpeg.API.csproj", "{AB76771F-272A-469C-A69A-F0F8D0F83C1A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FFmpeg.API", "FFmpeg.API\FFmpeg.API.csproj", "{AB76771F-272A-469C-A69A-F0F8D0F83C1A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FFmpeg.Infrastructure", "FFmpeg.Infrastructure\FFmpeg.Infrastructure.csproj", "{8E3619D0-AE4F-5EAD-011E-53D189B3AD91}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FFmpeg.Infrastructure", "FFmpeg.Infrastructure\FFmpeg.Infrastructure.csproj", "{8E3619D0-AE4F-5EAD-011E-53D189B3AD91}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FFmpeg.Core", "FFmpeg.Core\FFmpeg.Core.csproj", "{4E0E1A72-6579-4F76-9484-DBD2D63FB2BC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FFmpeg.Core", "FFmpeg.Core\FFmpeg.Core.csproj", "{4E0E1A72-6579-4F76-9484-DBD2D63FB2BC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{624802C2-B3F1-416F-BC61-15E78B33F328}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

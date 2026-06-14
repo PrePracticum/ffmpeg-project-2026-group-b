@@ -10,7 +10,7 @@ namespace Ffmpeg.Command.Commands
 {
     public abstract class BaseCommand
     {
-        private readonly FFmpegExecutor _executor;
+        protected readonly FFmpegExecutor _executor;
         protected ICommandBuilder CommandBuilder { get; set; }
 
         protected BaseCommand(FFmpegExecutor executor)
