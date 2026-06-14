@@ -17,7 +17,7 @@ namespace FFmpeg.Infrastructure.Commands
         public async Task<CommandResult> ExecuteAsync(ChangeAudioFormatModel model)
         {
             // פקודת ה-ffmpeg המדויקת מהמשימה שלך
-            string arguments = $"-i \"{model.InputFile}\" \"{model.OutputFile}\"";
+            string arguments = $"-i \"{model.InputFile}\" -vn \"{model.OutputFile}\"";
             
             var (success, output, error) = await _executor.RunCommandAsync(arguments);
             
