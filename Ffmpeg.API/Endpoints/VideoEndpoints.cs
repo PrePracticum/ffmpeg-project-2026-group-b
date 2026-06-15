@@ -47,6 +47,10 @@ namespace FFmpeg.API.Endpoints
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));   
 
+            app.MapPost("/api/video/extract-frame", ExtractFrame)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
             app.MapPost("/api/video/subtitles", AddSubtitles)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
@@ -54,12 +58,16 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/change-resolution", ChangeResolution)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB   
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
 
             app.MapPost("/api/video/change-speed", ChangeSpeed)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
 
             app.MapPost("/api/video/thumbnail", CreateThumbnail)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
+            app.MapPost("/api/video/remove-audio", RemoveAudio)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
@@ -514,6 +522,60 @@ namespace FFmpeg.API.Endpoints
             }
         }
 
+        private static async Task<IResult> ExtractFrame(
+            HttpContext context,
+            [FromForm] ExtractFrameDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.InputFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.InputFile);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(".png");
+                List<string> filesToCleanup = new List<string> { videoFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateExtractFrameCommand();
+                    var result = await command.ExecuteAsync(new ExtractFrameModel
+                    {
+                        InputFile = videoFileName,
+                        TimeStamp = dto.TimeStamp,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg extract frame failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        return Results.Problem("Failed to extract frame: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    return Results.File(fileBytes, "image/png", outputFileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing extract frame request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ExtractFrame endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
+
         private static async Task<IResult> ChangeResolution(
             HttpContext context,
             [FromForm] ChangeResolutionDto dto)
@@ -767,6 +829,73 @@ namespace FFmpeg.API.Endpoints
             {
                 logger.LogError(ex, "Error in CreateThumbnail endpoint");
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
+
+
+
+        private static async Task<IResult> RemoveAudio(
+    HttpContext context,
+    [FromForm] RemoveAudioDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new() { videoFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateRemoveAudioCommand();
+
+                    var result = await command.ExecuteAsync(new RemoveAudioModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        return Results.Problem(
+                            "Failed to remove audio: " + result.ErrorMessage,
+                            statusCode: 500);
+                    }
+
+                    byte[] fileBytes =
+                        await fileService.GetOutputFileAsync(outputFileName);
+
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(
+                        fileBytes,
+                        "video/mp4",
+                        "noaudio_" + dto.VideoFile.FileName);
+                }
+                catch
+                {
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in RemoveAudio endpoint");
+
+                return Results.Problem(
+                    "An error occurred: " + ex.Message,
+                    statusCode: 500);
             }
         }
     }
