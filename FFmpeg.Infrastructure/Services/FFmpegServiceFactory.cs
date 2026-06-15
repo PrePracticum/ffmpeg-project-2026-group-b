@@ -22,6 +22,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
         ICommand<CropVideoModel> CreateCropVideoCommand();
         ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
+    ICommand<ChangeVolumeModel> CreateChangeVolumeCommand();
 
         ICommand<ThumbnailModel> CreateThumbnailCommand();
         ICommand<RemoveAudioModel> CreateRemoveAudioCommand();
@@ -77,6 +78,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ChangeSpeedModel> CreateChangeSpeedCommand()
         {
             return new ChangeSpeedCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<ChangeVolumeModel> CreateChangeVolumeCommand()
+        {
+            return new ChangeVolumeCommand(_executor, _commandBuilder);
         }
 
         public ICommand<ThumbnailModel> CreateThumbnailCommand()
