@@ -22,10 +22,11 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
         ICommand<CropVideoModel> CreateCropVideoCommand();
         ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
-
         ICommand<ThumbnailModel> CreateThumbnailCommand();
         ICommand<RemoveAudioModel> CreateRemoveAudioCommand();
         ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand();
+        ICommand<AddBorderModel> CreateAddBorderCommand();
+        ICommand<BlurVideoModel> CreateBlurVideoCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -93,6 +94,15 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand()
         {
             return new BrightnessContrastCommand(_executor, _commandBuilder);
+        }
+        public ICommand<AddBorderModel> CreateAddBorderCommand()
+        {
+            return new AddBorderCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<BlurVideoModel> CreateBlurVideoCommand()
+        {
+            return new BlurVideoCommand(_executor, _commandBuilder);
         }
     }
 }

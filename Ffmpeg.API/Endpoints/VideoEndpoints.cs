@@ -71,6 +71,14 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/brightness-contrast", AdjustBrightnessContrast)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
+            app.MapPost("/api/video/add-border", AddBorder)   
+               .DisableAntiforgery()
+               .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
+            app.MapPost("/api/video/blur", BlurVideo)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
 
         private static async Task<IResult> AddWatermark(
@@ -898,6 +906,127 @@ namespace FFmpeg.API.Endpoints
                     "An error occurred: " + ex.Message,
                     statusCode: 500);
             }
+
+        }
+        private static async Task<IResult> AddBorder(
+            HttpContext context,
+            [FromForm] AddBorderDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                    return Results.BadRequest("Video file is required");
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new() { videoFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateAddBorderCommand();
+                    var result = await command.ExecuteAsync(new AddBorderModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName,
+                        BorderSize = dto.BorderSize,
+                        BorderColor = dto.BorderColor
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg add-border command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                        return Results.Problem("Failed to add border: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    return Results.File(fileBytes, "video/mp4", "bordered_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing add-border request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in AddBorder endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
+
+        private static async Task<IResult> BlurVideo(
+            HttpContext context,
+            [FromForm] BlurVideoDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                if (dto.Sigma <= 0)
+                {
+                    return Results.BadRequest("Blur strength (sigma) must be greater than 0");
+                }
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new() { videoFileName, outputFileName };
+
+                try
+                {
+                    // נשלוף את ה-Command בצורה גנרית מה-Factory
+                    var command = ffmpegService.CreateBlurVideoCommand();
+                    var result = await command.ExecuteAsync(new BlurVideoModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName,
+                        Sigma = dto.Sigma
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg blur command failed: {ErrorMessage}", result.ErrorMessage);
+                        return Results.Problem("Failed to blur video: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(fileBytes, "video/mp4", "blurred_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing blur video request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in BlurVideo endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
         }
     }
 }
+    
+
