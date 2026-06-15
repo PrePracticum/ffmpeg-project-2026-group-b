@@ -22,11 +22,16 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
         ICommand<CropVideoModel> CreateCropVideoCommand();
         ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
+    ICommand<ChangeVolumeModel> CreateChangeVolumeCommand();
 
         ICommand<ThumbnailModel> CreateThumbnailCommand();
         ICommand<RemoveAudioModel> CreateRemoveAudioCommand();
 
         ICommand<ConvertFormatModel> CreateConvertFormatCommand();
+        ICommand<ExtractAudioModel> CreateExtractAudioCommand();
+        ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand();
+        ICommand<AddBorderModel> CreateAddBorderCommand();
+        ICommand<BlurVideoModel> CreateBlurVideoCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -81,6 +86,11 @@ namespace FFmpeg.Infrastructure.Services
             return new ChangeSpeedCommand(_executor, _commandBuilder);
         }
 
+        public ICommand<ChangeVolumeModel> CreateChangeVolumeCommand()
+        {
+            return new ChangeVolumeCommand(_executor, _commandBuilder);
+        }
+
         public ICommand<ThumbnailModel> CreateThumbnailCommand()
         {
             return new ThumbnailCommand(_executor, _commandBuilder);
@@ -94,6 +104,24 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ConvertFormatModel> CreateConvertFormatCommand()
         {
             return new ConvertFormatCommand(_executor, _commandBuilder);
+        }
+        public ICommand<ExtractAudioModel> CreateExtractAudioCommand()
+        {
+            return new ExtractAudioCommand(_executor, _commandBuilder);
+        }
+        public ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand()
+        {
+            return new BrightnessContrastCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<AddBorderModel> CreateAddBorderCommand()
+        {
+            return new AddBorderCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<BlurVideoModel> CreateBlurVideoCommand()
+        {
+            return new BlurVideoCommand(_executor, _commandBuilder);
         }
     }
 }
