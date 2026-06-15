@@ -24,6 +24,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
         ICommand<ThumbnailModel> CreateThumbnailCommand();
         ICommand<RemoveAudioModel> CreateRemoveAudioCommand();
+        ICommand<ExtractAudioModel> CreateExtractAudioCommand();
         ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand();
         ICommand<AddBorderModel> CreateAddBorderCommand();
         ICommand<BlurVideoModel> CreateBlurVideoCommand();
@@ -91,10 +92,15 @@ namespace FFmpeg.Infrastructure.Services
             return new RemoveAudioCommand(_executor, _commandBuilder);
         }
 
+        public ICommand<ExtractAudioModel> CreateExtractAudioCommand()
+        {
+            return new ExtractAudioCommand(_executor, _commandBuilder);
+        }
         public ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand()
         {
             return new BrightnessContrastCommand(_executor, _commandBuilder);
         }
+
         public ICommand<AddBorderModel> CreateAddBorderCommand()
         {
             return new AddBorderCommand(_executor, _commandBuilder);
