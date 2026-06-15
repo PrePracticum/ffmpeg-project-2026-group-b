@@ -92,6 +92,7 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<AddBorderModel> CreateAddBorderCommand()
         {
             return new AddBorderCommand(_executor, _commandBuilder);
+        }
 
         public ICommand<BlurVideoModel> CreateBlurVideoCommand()
         {
