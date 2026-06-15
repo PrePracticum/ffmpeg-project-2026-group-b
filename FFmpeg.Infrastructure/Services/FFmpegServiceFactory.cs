@@ -25,6 +25,7 @@ namespace FFmpeg.Infrastructure.Services
 
         ICommand<ThumbnailModel> CreateThumbnailCommand();
         ICommand<RemoveAudioModel> CreateRemoveAudioCommand();
+        ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -87,6 +88,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<RemoveAudioModel> CreateRemoveAudioCommand()
         {
             return new RemoveAudioCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand()
+        {
+            return new BrightnessContrastCommand(_executor, _commandBuilder);
         }
     }
 }
