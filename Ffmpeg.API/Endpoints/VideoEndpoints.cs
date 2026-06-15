@@ -85,6 +85,10 @@ namespace FFmpeg.API.Endpoints
                 string extension = Path.GetExtension(dto.FirstVideo.FileName);
                 string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
 
+                string fullVideo1 = Path.GetFullPath(video1Path);
+                string fullVideo2 = Path.GetFullPath(video2Path);
+                string fullOutput = Path.GetFullPath(outputFileName);
+                
                 List<string> filesToCleanup = new List<string> { video1Path, video2Path, outputFileName };
 
                 try
@@ -92,9 +96,9 @@ namespace FFmpeg.API.Endpoints
                     var command = ffmpegService.CreateMergeVideosCommand();
                     var result = await command.ExecuteAsync(new MergeVideosModel
                     {
-                        FirstVideoPath = video1Path,
-                        SecondVideoPath = video2Path,
-                        OutputVideoPath = outputFileName
+                        FirstVideoPath = fullVideo1,
+                        SecondVideoPath = fullVideo2,
+                        OutputVideoPath = fullOutput
                     });
 
                     if (!result.IsSuccess)

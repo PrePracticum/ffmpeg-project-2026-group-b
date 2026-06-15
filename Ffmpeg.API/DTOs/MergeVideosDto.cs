@@ -7,7 +7,7 @@ namespace FFmpeg.API.DTOs
     {
         public IFormFile FirstVideo { get; set; }
         public IFormFile SecondVideo { get; set; }
-        public string Mode { get; set; } // "horizontal" או "vertical"
-        public string Format { get; set; } = "mp4"; // ברירת מחדל
+        public string Mode { get; set; } 
+        public string Format { get; set; } = "mp4"; 
     }
 }

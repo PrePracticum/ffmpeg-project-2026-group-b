@@ -21,12 +21,15 @@ namespace FFmpeg.Infrastructure.Commands
 
             string arguments = $"-i \"{model.FirstVideoPath}\" -i \"{model.SecondVideoPath}\" -filter_complex \"[0:v][1:v]{filter}=inputs=2\" \"{model.OutputVideoPath}\"";
 
-            return await RunWithCustomArgsAsync(arguments);
-        }
+            var (success, output, error) = await _executor.RunCommandAsync(arguments);
 
-        private async Task<CommandResult> RunWithCustomArgsAsync(string arguments)
-        {
-            throw new NotImplementedException("ודא ש-BaseCommand מאפשר הרצה עם ארגומנטים דינמיים");
+            return new CommandResult
+            {
+                IsSuccess = success,
+                ErrorMessage = success ? string.Empty : $"Command failed: {error}",
+                CommandExecuted = arguments,
+                OutputLog = success ? output : error
+            };
         }
     }
 }
