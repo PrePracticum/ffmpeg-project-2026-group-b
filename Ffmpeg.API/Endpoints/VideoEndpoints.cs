@@ -67,6 +67,10 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/remove-audio", RemoveAudio)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
+            app.MapPost("/api/video/extract-audio", ExtractAudio)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
 
         private static async Task<IResult> AddWatermark(
@@ -826,6 +830,63 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem(
                     "An error occurred: " + ex.Message,
                     statusCode: 500);
+            }
+        }
+        private static async Task<IResult> ExtractAudio(
+            HttpContext context,
+            [FromForm] ExtractAudioDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(".mp3");
+
+                List<string> filesToCleanup = new() { videoFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateExtractAudioCommand();
+                    var result = await command.ExecuteAsync(new ExtractAudioModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg extract audio command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        return Results.Problem("Failed to extract audio: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(
+                        fileBytes,
+                        "audio/mpeg",
+                        Path.GetFileNameWithoutExtension(dto.VideoFile.FileName) + ".mp3");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing extract audio request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ExtractAudio endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
     }
