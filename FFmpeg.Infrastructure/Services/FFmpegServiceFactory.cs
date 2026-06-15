@@ -25,6 +25,7 @@ namespace FFmpeg.Infrastructure.Services
 
         ICommand<ThumbnailModel> CreateThumbnailCommand();
         ICommand<RemoveAudioModel> CreateRemoveAudioCommand();
+        ICommand<AddBorderModel> CreateAddBorderCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -87,6 +88,10 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<RemoveAudioModel> CreateRemoveAudioCommand()
         {
             return new RemoveAudioCommand(_executor, _commandBuilder);
+        }
+        public ICommand<AddBorderModel> CreateAddBorderCommand()
+        {
+            return new AddBorderCommand(_executor, _commandBuilder);
         }
     }
 }
