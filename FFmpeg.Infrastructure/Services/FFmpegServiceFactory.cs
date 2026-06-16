@@ -32,6 +32,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand();
         ICommand<AddBorderModel> CreateAddBorderCommand();
         ICommand<BlurVideoModel> CreateBlurVideoCommand();
+        ICommand<VideoCompressionModel> CreateVideoCompressionCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -122,6 +123,10 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<BlurVideoModel> CreateBlurVideoCommand()
         {
             return new BlurVideoCommand(_executor, _commandBuilder);
+        }
+        public ICommand<VideoCompressionModel> CreateVideoCompressionCommand()
+        {
+            return new VideoCompressionCommand(_executor, _commandBuilder);
         }
     }
 }
