@@ -25,7 +25,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
         ICommand<CropVideoModel> CreateCropVideoCommand();
         ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
-    ICommand<ChangeVolumeModel> CreateChangeVolumeCommand();
+        ICommand<ChangeVolumeModel> CreateChangeVolumeCommand();
 
         ICommand<ThumbnailModel> CreateThumbnailCommand();
         ICommand<RemoveAudioModel> CreateRemoveAudioCommand();
@@ -36,6 +36,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<AddBorderModel> CreateAddBorderCommand();
         ICommand<BlurVideoModel> CreateBlurVideoCommand();
         ICommand<VideoCompressionModel> CreateVideoCompressionCommand();
+        ICommand<DuplicateVideoModel> CreateDuplicateVideoCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -135,6 +136,10 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<VideoCompressionModel> CreateVideoCompressionCommand()
         {
             return new VideoCompressionCommand(_executor, _commandBuilder);
+        }
+        public ICommand<DuplicateVideoModel> CreateDuplicateVideoCommand()
+        {
+            return new DuplicateVideoCommand(_executor, _commandBuilder);
         }
     }
 }
