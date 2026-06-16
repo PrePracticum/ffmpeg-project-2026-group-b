@@ -7,7 +7,7 @@ using System.IO;
 using System.Threading.Tasks;
 using FFmpeg.API.DTOs;
 using FFmpeg.Core.Interfaces;
-using FFmpeg.Core.Mod   els;
+using FFmpeg.Core.Models;
 using FFmpeg.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 
