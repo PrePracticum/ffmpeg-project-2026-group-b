@@ -92,6 +92,19 @@ namespace FFmpeg.Infrastructure.Services
                 return (false, string.Empty, ex.ToString());
             }
         }
+        // הפונקציה שלך: המרת פורמט אודיו
+        public async Task<string> ChangeAudioFormatAsync(string audioName, string audioOutputName)
+        {
+            string arguments = $"-i \"{audioName}\" \"{audioOutputName}\"";
+            var result = await RunCommandAsync(arguments);
+
+            if (!result.Success)
+            {
+                throw new Exception($"FFmpeg failed to change audio format: {result.Error}");
+            }
+
+            return audioOutputName;
+        }
     }
 
 }
