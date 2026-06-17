@@ -64,13 +64,81 @@ namespace FFmpeg.API.Endpoints
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
 
+        //private static async Task<IResult> MergeVideos(
+        //    HttpContext context,
+        //    [FromForm] MergeVideosDto dto)
+        //{
+        //    var fileService = context.RequestServices.GetRequiredService<IFileService>();
+        //    var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+        //    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+        //    try
+        //    {
+        //        if (dto.FirstVideo == null || dto.SecondVideo == null)
+        //        {
+        //            return Results.BadRequest("Both VideoFile1 and VideoFile2 are required.");
+        //        }
+
+        //        string video1Path = await fileService.SaveUploadedFileAsync(dto.FirstVideo);
+        //        string video2Path = await fileService.SaveUploadedFileAsync(dto.SecondVideo);
+
+        //        string extension = Path.GetExtension(dto.FirstVideo.FileName);
+        //        string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+        //        string fullVideo1 = Path.GetFullPath(video1Path);
+        //        string fullVideo2 = Path.GetFullPath(video2Path);
+        //        string fullOutput = Path.GetFullPath(outputFileName);
+
+        //        List<string> filesToCleanup = new List<string> { video1Path, video2Path, outputFileName };
+
+        //        try
+        //        {
+        //            var command = ffmpegService.CreateMergeVideosCommand();
+        //            var result = await command.ExecuteAsync(new MergeVideosModel
+        //            {
+        //                FirstVideoPath = fullVideo1,
+        //                SecondVideoPath = fullVideo2,
+        //                OutputVideoPath = fullOutput
+        //            });
+
+        //            if (!result.IsSuccess)
+        //            {
+        //                logger.LogError("FFmpeg merge command failed: {ErrorMessage}", result.ErrorMessage);
+        //                return Results.Problem("Failed to merge videos: " + result.ErrorMessage, statusCode: 500);
+        //            }
+
+        //            byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+        //            _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+        //            return Results.File(fileBytes, "video/mp4", "merged_" + dto.FirstVideo.FileName);
+        //        }
+        //        catch (Exception ex)
+        //        {
+        //            logger.LogError(ex, "Error processing merge videos request");
+        //            _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+        //            throw;
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        logger.LogError(ex, "Error in MergeVideos endpoint");
+        //        return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+        //    }
+        //}
+
+
+
+        // מתודת עזר פנימית לניקוי קבצים מהדיסק ללא קריסת האפליקציה
+
+
         private static async Task<IResult> MergeVideos(
-            HttpContext context,
-            [FromForm] MergeVideosDto dto)
+    HttpContext context,
+    [FromForm] MergeVideosDto dto)
         {
-            var fileService = context.RequestServices.GetRequiredService<IFileService>();
             var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
             var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            List<string> tempFilesToCleanup = new List<string>();
 
             try
             {
@@ -79,26 +147,37 @@ namespace FFmpeg.API.Endpoints
                     return Results.BadRequest("Both VideoFile1 and VideoFile2 are required.");
                 }
 
-                string video1Path = await fileService.SaveUploadedFileAsync(dto.FirstVideo);
-                string video2Path = await fileService.SaveUploadedFileAsync(dto.SecondVideo);
-
+                string tempDir = Path.GetTempPath();
                 string extension = Path.GetExtension(dto.FirstVideo.FileName);
-                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
 
-                string fullVideo1 = Path.GetFullPath(video1Path);
-                string fullVideo2 = Path.GetFullPath(video2Path);
-                string fullOutput = Path.GetFullPath(outputFileName);
-                
-                List<string> filesToCleanup = new List<string> { video1Path, video2Path, outputFileName };
+                // יצירת נתיבים זמניים
+                string safeVideo1Path = Path.Combine(tempDir, $"input1_{Guid.NewGuid()}{extension}");
+                string safeVideo2Path = Path.Combine(tempDir, $"input2_{Guid.NewGuid()}{extension}");
+                string safeOutputPath = Path.Combine(tempDir, $"output_{Guid.NewGuid()}{extension}");
+
+                tempFilesToCleanup.AddRange(new[] { safeVideo1Path, safeVideo2Path, safeOutputPath });
+
+                // שמירת הקבצים מה-Stream
+                using (var stream1 = new FileStream(safeVideo1Path, FileMode.Create))
+                {
+                    await dto.FirstVideo.CopyToAsync(stream1);
+                }
+
+                using (var stream2 = new FileStream(safeVideo2Path, FileMode.Create))
+                {
+                    await dto.SecondVideo.CopyToAsync(stream2);
+                }
 
                 try
                 {
                     var command = ffmpegService.CreateMergeVideosCommand();
+
                     var result = await command.ExecuteAsync(new MergeVideosModel
                     {
-                        FirstVideoPath = fullVideo1,
-                        SecondVideoPath = fullVideo2,
-                        OutputVideoPath = fullOutput
+                        FirstVideoPath = safeVideo1Path,
+                        SecondVideoPath = safeVideo2Path,
+                        OutputVideoPath = safeOutputPath,
+                        Mode = dto.Mode
                     });
 
                     if (!result.IsSuccess)
@@ -107,24 +186,43 @@ namespace FFmpeg.API.Endpoints
                         return Results.Problem("Failed to merge videos: " + result.ErrorMessage, statusCode: 500);
                     }
 
-                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
-                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    byte[] fileBytes = await File.ReadAllBytesAsync(safeOutputPath);
+
+                    // ניקוי הקבצים ברקע
+                    _ = Task.Run(() => CleanUpFiles(tempFilesToCleanup, logger));
 
                     return Results.File(fileBytes, "video/mp4", "merged_" + dto.FirstVideo.FileName);
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "Error processing merge videos request");
-                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    logger.LogError(ex, "Error during FFmpeg command execution");
+                    CleanUpFiles(tempFilesToCleanup, logger);
                     throw;
                 }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error in MergeVideos endpoint");
+                CleanUpFiles(tempFilesToCleanup, logger);
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
+        private static void CleanUpFiles(List<string> files, ILogger logger)
+        {
+            foreach (var file in files)
+            {
+                try
+                {
+                    if (File.Exists(file)) File.Delete(file);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning($"Could not delete temp file {file}: {ex.Message}");
+                }
+            }
+        }
+
 
         private static async Task<IResult> AddWatermark(
             HttpContext context,
