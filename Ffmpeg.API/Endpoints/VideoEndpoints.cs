@@ -93,6 +93,9 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/blur", BlurVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
+            app.MapPost("/api/video/limit-bitrate", LimitBitrate)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
 
             app.MapPost("/api/video/compress", CompressVideo)
     .DisableAntiforgery()
@@ -163,7 +166,62 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+        private static async Task<IResult> LimitBitrate(
+            HttpContext context,
+            [FromForm] LimitBitrateDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
 
+            try
+            {
+                if (dto.VideoFile == null)
+                    return Results.BadRequest("Video file is required");
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new() { videoFileName, outputFileName };
+
+                try
+                {
+                    // קריאה לפקודה החדשה שיצרת ב-Factory
+                    var command = ffmpegService.CreateLimitBitrateCommand(); 
+                    var result = await command.ExecuteAsync(new LimitBitrateModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName,
+                        Bitrate = dto.Bitrate
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg limit-bitrate command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                        return Results.Problem("Failed to limit bitrate: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    
+                    return Results.File(fileBytes, "video/mp4", "limited_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing limit-bitrate request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in LimitBitrate endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
         private static async Task<IResult> AddWatermark(
             HttpContext context,
             [FromForm] WatermarkDto dto)
