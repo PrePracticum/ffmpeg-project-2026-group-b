@@ -1,9 +1,11 @@
-﻿using Ffmpeg.Command;
+using Ffmpeg.Command;
 using Ffmpeg.Command.Commands;
 using FFmpeg.Core.Models;
 using FFmpeg.Infrastructure.Commands;
 using Microsoft.Extensions.Configuration;
 using System;
+using System.IO;
+
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,6 +16,7 @@ namespace FFmpeg.Infrastructure.Services
     {
         ICommand<WatermarkModel> CreateWatermarkCommand();
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
+        ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand();
         ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
         ICommand<CutVideoModel> CreateCutVideoCommand();
         ICommand<GreenScreenModel> CreateGreenScreenCommand();
@@ -32,6 +35,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand();
         ICommand<AddBorderModel> CreateAddBorderCommand();
         ICommand<BlurVideoModel> CreateBlurVideoCommand();
+        ICommand<VideoCompressionModel> CreateVideoCompressionCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -52,6 +56,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ReverseVideoModel> CreateReverseVideoCommand()
         {
             return new ReverseVideoCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand()
+        {
+            return new ChangeAudioFormatCommand(_executor);
         }
         public ICommand<AnimatedTextModel> CreateAnimatedTextCommand()
         {
@@ -122,6 +131,10 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<BlurVideoModel> CreateBlurVideoCommand()
         {
             return new BlurVideoCommand(_executor, _commandBuilder);
+        }
+        public ICommand<VideoCompressionModel> CreateVideoCompressionCommand()
+        {
+            return new VideoCompressionCommand(_executor, _commandBuilder);
         }
     }
 }

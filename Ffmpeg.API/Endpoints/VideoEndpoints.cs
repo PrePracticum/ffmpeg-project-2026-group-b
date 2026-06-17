@@ -10,8 +10,6 @@ using FFmpeg.Core.Interfaces;
 using FFmpeg.Core.Models;
 using FFmpeg.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
-
-
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -29,6 +27,10 @@ namespace FFmpeg.API.Endpoints
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
 
+            app.MapPost("/api/audio/change-format", ChangeAudioFormat)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
             app.MapPost("/api/video/crop", CropVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
@@ -43,7 +45,7 @@ namespace FFmpeg.API.Endpoints
 
             app.MapPost("/api/video/green-screen", GreenScreen)
                 .DisableAntiforgery()
-                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));   
 
             app.MapPost("/api/video/extract-frame", ExtractFrame)
                 .DisableAntiforgery()
@@ -55,6 +57,7 @@ namespace FFmpeg.API.Endpoints
 
             app.MapPost("/api/video/change-resolution", ChangeResolution)
                 .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB   
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
 
             app.MapPost("/api/video/change-speed", ChangeSpeed)
@@ -93,6 +96,75 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/limit-bitrate", LimitBitrate)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
+            app.MapPost("/api/video/compress", CompressVideo)
+    .DisableAntiforgery()
+    .WithMetadata(new RequestSizeLimitAttribute(104857600));
+        }
+
+        private static async Task<IResult> ChangeAudioFormat(HttpContext context, [FromForm] ChangeAudioFormatDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.AudioFile == null) return Results.BadRequest("Audio file is required");
+
+                string audioFileName = await fileService.SaveUploadedFileAsync(dto.AudioFile);
+                string extension = string.IsNullOrEmpty(dto.TargetFormat) ? ".wav" : dto.TargetFormat;
+                if (!extension.StartsWith(".")) extension = "." + extension;
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new List<string> { audioFileName, outputFileName };
+
+                try
+                {
+                    string fullOutputPath = fileService.GetFullOutputPath(outputFileName);
+                    
+                    string baseDir = System.IO.Path.GetDirectoryName(System.IO.Path.GetDirectoryName(fullOutputPath));
+                    string fullInputPath = audioFileName;
+                    if (!string.IsNullOrEmpty(baseDir))
+                    {
+                        string[] foundFiles = System.IO.Directory.GetFiles(baseDir, audioFileName, System.IO.SearchOption.AllDirectories);
+                        if (foundFiles.Length > 0)
+                        {
+                            fullInputPath = foundFiles[0];
+                        }
+                    }
+
+                    var command = ffmpegService.CreateChangeAudioFormatCommand();
+                    var result = await command.ExecuteAsync(new ChangeAudioFormatModel
+                    {
+                        InputFile = fullInputPath,
+                        OutputFile = fullOutputPath
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg command failed: {ErrorMessage}", result.ErrorMessage);
+                        return Results.Problem("Failed to change format: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    string finalName = "converted_audio" + extension;
+                    return Results.File(fileBytes, "audio/" + extension.Trim('.'), finalName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing audio format request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ChangeAudioFormat endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
         }
         private static async Task<IResult> LimitBitrate(
             HttpContext context,
@@ -213,6 +285,7 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
         private static async Task<IResult> AddSubtitles(
             HttpContext context,
             [FromForm] SubtitlesDto dto)
@@ -271,6 +344,7 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
         private static async Task<IResult> ReverseVideo(
             HttpContext context,
             [FromForm] ReverseVideoDto dto)
@@ -326,8 +400,8 @@ namespace FFmpeg.API.Endpoints
         }
 
         private static async Task<IResult> CropVideo(
-    HttpContext context,
-    [FromForm] CropVideoDto dto)
+            HttpContext context,
+            [FromForm] CropVideoDto dto)
         {
             var fileService = context.RequestServices.GetRequiredService<IFileService>();
             var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
@@ -1216,7 +1290,63 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+        private static async Task<IResult> CompressVideo(
+    HttpContext context,
+    [FromForm] VideoCompressionDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
 
+            try
+            {
+                if (dto.VideoFile == null)
+                    return Results.BadRequest("Video file is required");
+
+                if (dto.Crf < 0 || dto.Crf > 51)
+                    return Results.BadRequest("CRF must be between 0 and 51 (higher = lower quality, 28 is default)");
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new() { videoFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateVideoCompressionCommand();
+                    var result = await command.ExecuteAsync(new VideoCompressionModel
+                    {
+                        InputFile = videoFileName,
+                        OutputFile = outputFileName,
+                        Crf = dto.Crf
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg compress command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                        return Results.Problem("Failed to compress video: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    return Results.File(fileBytes, "video/mp4", "compressed_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing compress video request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in CompressVideo endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
         private static async Task<IResult> ConvertFormat(
     HttpContext context,
     [FromForm] ConvertFormatDto dto)
