@@ -2,9 +2,7 @@
 
 namespace FFmpeg.API.DTOs;
 
-public class RotationRequestDto
+public class ReverseVideoDto
 {
     public IFormFile? VideoFile { get; set; }
-    
-    public int RotationAngle { get; set; }
 }
