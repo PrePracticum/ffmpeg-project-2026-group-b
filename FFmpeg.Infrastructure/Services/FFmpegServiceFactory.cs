@@ -1,9 +1,11 @@
-﻿using Ffmpeg.Command;
+using Ffmpeg.Command;
 using Ffmpeg.Command.Commands;
 using FFmpeg.Core.Models;
 using FFmpeg.Infrastructure.Commands;
 using Microsoft.Extensions.Configuration;
 using System;
+using System.IO;
+
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,6 +16,7 @@ namespace FFmpeg.Infrastructure.Services
     {
         ICommand<WatermarkModel> CreateWatermarkCommand();
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
+        ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand();
         ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
         ICommand<CutVideoModel> CreateCutVideoCommand();
         ICommand<GreenScreenModel> CreateGreenScreenCommand();
@@ -22,7 +25,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<ChangeResolutionModel> CreateChangeResolutionCommand();
         ICommand<CropVideoModel> CreateCropVideoCommand();
         ICommand<ChangeSpeedModel> CreateChangeSpeedCommand();
-    ICommand<ChangeVolumeModel> CreateChangeVolumeCommand();
+        ICommand<ChangeVolumeModel> CreateChangeVolumeCommand();
 
         ICommand<ThumbnailModel> CreateThumbnailCommand();
         ICommand<RemoveAudioModel> CreateRemoveAudioCommand();
@@ -33,6 +36,8 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<AddBorderModel> CreateAddBorderCommand();
         ICommand<BlurVideoModel> CreateBlurVideoCommand();
         ICommand<VideoCompressionModel> CreateVideoCompressionCommand();
+
+        ICommand<MixAudioModel> CreateMixAudioCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -53,6 +58,11 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<ReverseVideoModel> CreateReverseVideoCommand()
         {
             return new ReverseVideoCommand(_executor, _commandBuilder);
+        }
+
+        public ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand()
+        {
+            return new ChangeAudioFormatCommand(_executor);
         }
         public ICommand<AnimatedTextModel> CreateAnimatedTextCommand()
         {
@@ -128,5 +138,10 @@ namespace FFmpeg.Infrastructure.Services
         {
             return new VideoCompressionCommand(_executor, _commandBuilder);
         }
+
+        public ICommand<MixAudioModel> CreateMixAudioCommand(){
+               return new MixAudioCommand(_executor, _commandBuilder);
+               
+               }
     }
 }

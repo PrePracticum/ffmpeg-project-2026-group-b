@@ -10,8 +10,6 @@ using FFmpeg.Core.Interfaces;
 using FFmpeg.Core.Models;
 using FFmpeg.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
-
-
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -29,6 +27,10 @@ namespace FFmpeg.API.Endpoints
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB
 
+            app.MapPost("/api/audio/change-format", ChangeAudioFormat)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
             app.MapPost("/api/video/crop", CropVideo)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
@@ -43,7 +45,7 @@ namespace FFmpeg.API.Endpoints
 
             app.MapPost("/api/video/green-screen", GreenScreen)
                 .DisableAntiforgery()
-                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));   
 
             app.MapPost("/api/video/extract-frame", ExtractFrame)
                 .DisableAntiforgery()
@@ -55,7 +57,7 @@ namespace FFmpeg.API.Endpoints
 
             app.MapPost("/api/video/change-resolution", ChangeResolution)
                 .DisableAntiforgery()
-                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
+                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB   
 
             app.MapPost("/api/video/change-speed", ChangeSpeed)
                 .DisableAntiforgery()
@@ -94,6 +96,75 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/compress", CompressVideo)
     .DisableAntiforgery()
     .WithMetadata(new RequestSizeLimitAttribute(104857600));
+                app.MapPost("/api/audio/mix", MixAudio)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
+        }
+        
+
+        private static async Task<IResult> ChangeAudioFormat(HttpContext context, [FromForm] ChangeAudioFormatDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.AudioFile == null) return Results.BadRequest("Audio file is required");
+
+                string audioFileName = await fileService.SaveUploadedFileAsync(dto.AudioFile);
+                string extension = string.IsNullOrEmpty(dto.TargetFormat) ? ".wav" : dto.TargetFormat;
+                if (!extension.StartsWith(".")) extension = "." + extension;
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new List<string> { audioFileName, outputFileName };
+
+                try
+                {
+                    string fullOutputPath = fileService.GetFullOutputPath(outputFileName);
+                    
+                    string baseDir = System.IO.Path.GetDirectoryName(System.IO.Path.GetDirectoryName(fullOutputPath));
+                    string fullInputPath = audioFileName;
+                    if (!string.IsNullOrEmpty(baseDir))
+                    {
+                        string[] foundFiles = System.IO.Directory.GetFiles(baseDir, audioFileName, System.IO.SearchOption.AllDirectories);
+                        if (foundFiles.Length > 0)
+                        {
+                            fullInputPath = foundFiles[0];
+                        }
+                    }
+
+                    var command = ffmpegService.CreateChangeAudioFormatCommand();
+                    var result = await command.ExecuteAsync(new ChangeAudioFormatModel
+                    {
+                        InputFile = fullInputPath,
+                        OutputFile = fullOutputPath
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg command failed: {ErrorMessage}", result.ErrorMessage);
+                        return Results.Problem("Failed to change format: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    string finalName = "converted_audio" + extension;
+                    return Results.File(fileBytes, "audio/" + extension.Trim('.'), finalName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing audio format request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ChangeAudioFormat endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
         }
 
         private static async Task<IResult> AddWatermark(
@@ -159,6 +230,7 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
         private static async Task<IResult> AddSubtitles(
             HttpContext context,
             [FromForm] SubtitlesDto dto)
@@ -217,6 +289,7 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
         private static async Task<IResult> ReverseVideo(
             HttpContext context,
             [FromForm] ReverseVideoDto dto)
@@ -272,8 +345,8 @@ namespace FFmpeg.API.Endpoints
         }
 
         private static async Task<IResult> CropVideo(
-    HttpContext context,
-    [FromForm] CropVideoDto dto)
+            HttpContext context,
+            [FromForm] CropVideoDto dto)
         {
             var fileService = context.RequestServices.GetRequiredService<IFileService>();
             var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
@@ -1279,9 +1352,68 @@ namespace FFmpeg.API.Endpoints
             {
                 logger.LogError(ex, "Error in ConvertFormat endpoint");
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+           }
+           }
+
+
+            // ...existing code...
+        private static async Task<IResult> MixAudio(
+            HttpContext context,
+            [FromForm] MixAudioDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.AudioFile1 == null || dto.AudioFile2 == null)
+                    return Results.BadRequest("Two audio files are required");
+
+                string audioFileName1 = await fileService.SaveUploadedFileAsync(dto.AudioFile1);
+                string audioFileName2 = await fileService.SaveUploadedFileAsync(dto.AudioFile2);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(".mp3");
+
+                List<string> filesToCleanup = new() { audioFileName1, audioFileName2, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateMixAudioCommand();
+                    var result = await command.ExecuteAsync(new MixAudioModel
+                    {
+                        InputFile1 = audioFileName1,
+                        InputFile2 = audioFileName2,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg mix audio command failed: {ErrorMessage}", result.ErrorMessage);
+                        _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                        return Results.Problem("Failed to mix audio: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    return Results.File(fileBytes, "audio/mpeg", "mixed_audio.mp3");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing mix audio request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in MixAudio endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
     }
 }
+        
+    
+
     
 
