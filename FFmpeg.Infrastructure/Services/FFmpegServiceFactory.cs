@@ -139,7 +139,7 @@ namespace FFmpeg.Infrastructure.Services
         }
         public ICommand<DuplicateVideoModel> CreateDuplicateVideoCommand()
         {
-            return new DuplicateVideoCommand(_executor, _CommandBuilder());
+            return new DuplicateVideoCommand(_executor, _commandBuilder());
         }
     }
 }
