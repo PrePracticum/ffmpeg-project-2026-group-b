@@ -42,6 +42,9 @@ builder.Services.AddScoped<IFFmpegServiceFactory>(provider =>
 // Add file service for handling temporary files
 builder.Services.AddScoped<IFileService, FileService>();
 
+// ---> הנה השורה הראשונה שהוספנו! <---
+builder.Services.AddScoped<IAudioEffectService, AudioEffectService>();
+
 
 var app = builder.Build();
 
@@ -56,6 +59,8 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapEndpoints();
 
+// ---> הנה השורה השנייה שהוספנו! <---
+app.MapAudioEffectEndpoints();
+
 app.MapGet("/", () => { return "FFmpeg API is running"; });
 app.Run();
-
