@@ -1,8 +1,8 @@
-﻿namespace FFmpeg.API.DTOs
-{
-    public class ReverseVideoDto
-    {
-        public IFormFile VideoFile { get; set; }
+﻿using Microsoft.AspNetCore.Http;
 
-    }
+namespace FFmpeg.API.DTOs;
+
+public class ReverseVideoDto
+{
+    public IFormFile? VideoFile { get; set; }
 }
