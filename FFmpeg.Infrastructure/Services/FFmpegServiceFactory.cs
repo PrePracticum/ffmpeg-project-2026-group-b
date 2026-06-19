@@ -15,6 +15,7 @@ namespace FFmpeg.Infrastructure.Services
     public interface IFFmpegServiceFactory
     {
         ICommand<WatermarkModel> CreateWatermarkCommand();
+        ICommand<TimestampModel> CreateTimestampCommand();
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
         ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand();
         ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
@@ -37,6 +38,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<BlurVideoModel> CreateBlurVideoCommand();
         ICommand<VideoCompressionModel> CreateVideoCompressionCommand();
         ICommand<DuplicateVideoModel> CreateDuplicateVideoCommand();
+        ICommand<ReplaceAudioModel> CreateReplaceAudioCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -66,6 +68,10 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<AnimatedTextModel> CreateAnimatedTextCommand()
         {
             return new AnimatedTextCommand(_executor, _commandBuilder);
+        }
+        public ICommand<TimestampModel> CreateTimestampCommand()
+        {
+            return new TimestampCommand(_executor, _commandBuilder);
         }
         public ICommand<GreenScreenModel> CreateGreenScreenCommand()
         {
@@ -141,5 +147,10 @@ namespace FFmpeg.Infrastructure.Services
         {
             return new DuplicateVideoCommand(_executor, _commandBuilder);
         }
+        public ICommand<ReplaceAudioModel> CreateReplaceAudioCommand()
+        {
+            return new ReplaceAudioCommand(_executor, _commandBuilder);
+        }
     }
 }
+
