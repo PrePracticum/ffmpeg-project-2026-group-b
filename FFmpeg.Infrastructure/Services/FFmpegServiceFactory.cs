@@ -36,8 +36,6 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<AddBorderModel> CreateAddBorderCommand();
         ICommand<BlurVideoModel> CreateBlurVideoCommand();
         ICommand<VideoCompressionModel> CreateVideoCompressionCommand();
-
-        ICommand<MixAudioModel> CreateMixAudioCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -138,10 +136,6 @@ namespace FFmpeg.Infrastructure.Services
         {
             return new VideoCompressionCommand(_executor, _commandBuilder);
         }
-
-        public ICommand<MixAudioModel> CreateMixAudioCommand(){
-               return new MixAudioCommand(_executor, _commandBuilder);
-               
-               }
     }
 }
+
