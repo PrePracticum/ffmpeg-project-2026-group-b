@@ -15,6 +15,7 @@ namespace FFmpeg.Infrastructure.Services
     public interface IFFmpegServiceFactory
     {
         ICommand<WatermarkModel> CreateWatermarkCommand();
+        ICommand<TimestampModel> CreateTimestampCommand();
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
         ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand();
         ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
@@ -66,6 +67,10 @@ namespace FFmpeg.Infrastructure.Services
         public ICommand<AnimatedTextModel> CreateAnimatedTextCommand()
         {
             return new AnimatedTextCommand(_executor, _commandBuilder);
+        }
+        public ICommand<TimestampModel> CreateTimestampCommand()
+        {
+            return new TimestampCommand(_executor, _commandBuilder);
         }
         public ICommand<GreenScreenModel> CreateGreenScreenCommand()
         {
