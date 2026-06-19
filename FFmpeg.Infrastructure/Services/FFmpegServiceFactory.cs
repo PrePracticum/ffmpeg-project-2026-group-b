@@ -37,6 +37,7 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<AddBorderModel> CreateAddBorderCommand();
         ICommand<BlurVideoModel> CreateBlurVideoCommand();
         ICommand<VideoCompressionModel> CreateVideoCompressionCommand();
+        ICommand<DuplicateVideoModel> CreateDuplicateVideoCommand();
         ICommand<ReplaceAudioModel> CreateReplaceAudioCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -142,7 +143,10 @@ namespace FFmpeg.Infrastructure.Services
         {
             return new VideoCompressionCommand(_executor, _commandBuilder);
         }
-
+        public ICommand<DuplicateVideoModel> CreateDuplicateVideoCommand()
+        {
+            return new DuplicateVideoCommand(_executor, _commandBuilder);
+        }
         public ICommand<ReplaceAudioModel> CreateReplaceAudioCommand()
         {
             return new ReplaceAudioCommand(_executor, _commandBuilder);
