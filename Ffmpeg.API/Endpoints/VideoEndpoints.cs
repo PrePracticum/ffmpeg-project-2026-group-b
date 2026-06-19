@@ -58,7 +58,6 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/change-resolution", ChangeResolution)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB   
-                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
 
             app.MapPost("/api/video/change-speed", ChangeSpeed)
                 .DisableAntiforgery()
@@ -97,6 +96,10 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/compress", CompressVideo)
     .DisableAntiforgery()
     .WithMetadata(new RequestSizeLimitAttribute(104857600));
+
+            app.MapPost("/api/video/replace-audio", ReplaceAudio)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
 
         private static async Task<IResult> ChangeAudioFormat(HttpContext context, [FromForm] ChangeAudioFormatDto dto)
@@ -1232,6 +1235,75 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
+        private static async Task<IResult> ReplaceAudio(
+            HttpContext context,
+            [FromForm] ReplaceAudioDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.VideoFile == null)
+                {
+                    return Results.BadRequest("Video file is required");
+                }
+
+                if (dto.AudioFile == null)
+                {
+                    return Results.BadRequest("Audio file is required");
+                }
+
+                string videoFileName = await fileService.SaveUploadedFileAsync(dto.VideoFile);
+                string audioFileName = await fileService.SaveUploadedFileAsync(dto.AudioFile);
+
+                string extension = Path.GetExtension(dto.VideoFile.FileName);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(extension);
+
+                List<string> filesToCleanup = new() { videoFileName, audioFileName, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateReplaceAudioCommand();
+
+                    var result = await command.ExecuteAsync(new ReplaceAudioModel
+                    {
+                        InputVideoFile = videoFileName,
+                        NewAudioFile = audioFileName,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg replace audio command failed: {ErrorMessage}, Command: {Command}",
+                            result.ErrorMessage, result.CommandExecuted);
+                        return Results.Problem("Failed to replace audio: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+
+                    return Results.File(
+                        fileBytes,
+                        "video/mp4",
+                        "replaced_audio_" + dto.VideoFile.FileName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing replace audio request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in ReplaceAudio endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
+
         private static async Task<IResult> CompressVideo(
     HttpContext context,
     [FromForm] VideoCompressionDto dto)
