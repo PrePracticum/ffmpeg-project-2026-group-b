@@ -58,7 +58,6 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/change-resolution", ChangeResolution)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB   
-                .WithMetadata(new RequestSizeLimitAttribute(104857600)); // 100 MB    
 
             app.MapPost("/api/video/change-speed", ChangeSpeed)
                 .DisableAntiforgery()
