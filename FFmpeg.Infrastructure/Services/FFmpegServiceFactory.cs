@@ -35,6 +35,8 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand();
         ICommand<AddBorderModel> CreateAddBorderCommand();
         ICommand<BlurVideoModel> CreateBlurVideoCommand();
+      ICommand<MixAudioModel> CreateMixAudioCommand();
+ICommand<ReplaceAudioModel> CreateReplaceAudioCommand();
         ICommand<VideoCompressionModel> CreateVideoCompressionCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
@@ -53,6 +55,15 @@ namespace FFmpeg.Infrastructure.Services
         {
             return new WatermarkCommand(_executor, _commandBuilder);
         }
+        public ICommand<MixAudioModel> CreateMixAudioCommand()
+{
+    return new MixAudioCommand(_executor, _commandBuilder);
+}
+
+public ICommand<ReplaceAudioModel> CreateReplaceAudioCommand()
+{
+    return new ReplaceAudioCommand(_executor, _commandBuilder);
+}
         public ICommand<ReverseVideoModel> CreateReverseVideoCommand()
         {
             return new ReverseVideoCommand(_executor, _commandBuilder);
