@@ -15,6 +15,7 @@ namespace FFmpeg.Infrastructure.Services
     public interface IFFmpegServiceFactory
     {
         ICommand<WatermarkModel> CreateWatermarkCommand();
+        ICommand<TimestampModel> CreateTimestampCommand();
         ICommand<ReverseVideoModel> CreateReverseVideoCommand();
         ICommand<ChangeAudioFormatModel> CreateChangeAudioFormatCommand();
         ICommand<AnimatedTextModel> CreateAnimatedTextCommand();
@@ -35,9 +36,10 @@ namespace FFmpeg.Infrastructure.Services
         ICommand<BrightnessContrastModel> CreateBrightnessContrastCommand();
         ICommand<AddBorderModel> CreateAddBorderCommand();
         ICommand<BlurVideoModel> CreateBlurVideoCommand();
-      ICommand<MixAudioModel> CreateMixAudioCommand();
-ICommand<ReplaceAudioModel> CreateReplaceAudioCommand();
+        ICommand<MixAudioModel> CreateMixAudioCommand();
         ICommand<VideoCompressionModel> CreateVideoCompressionCommand();
+        ICommand<DuplicateVideoModel> CreateDuplicateVideoCommand();
+        ICommand<ReplaceAudioModel> CreateReplaceAudioCommand();
     }
     public class FFmpegServiceFactory : IFFmpegServiceFactory
     {
@@ -56,14 +58,14 @@ ICommand<ReplaceAudioModel> CreateReplaceAudioCommand();
             return new WatermarkCommand(_executor, _commandBuilder);
         }
         public ICommand<MixAudioModel> CreateMixAudioCommand()
-{
-    return new MixAudioCommand(_executor, _commandBuilder);
-}
+        {
+            return new MixAudioCommand(_executor, _commandBuilder);
+        }
 
-public ICommand<ReplaceAudioModel> CreateReplaceAudioCommand()
-{
-    return new ReplaceAudioCommand(_executor, _commandBuilder);
-}
+        public ICommand<ReplaceAudioModel> CreateReplaceAudioCommand()
+        {
+            return new ReplaceAudioCommand(_executor, _commandBuilder);
+        }
         public ICommand<ReverseVideoModel> CreateReverseVideoCommand()
         {
             return new ReverseVideoCommand(_executor, _commandBuilder);
@@ -76,6 +78,10 @@ public ICommand<ReplaceAudioModel> CreateReplaceAudioCommand()
         public ICommand<AnimatedTextModel> CreateAnimatedTextCommand()
         {
             return new AnimatedTextCommand(_executor, _commandBuilder);
+        }
+        public ICommand<TimestampModel> CreateTimestampCommand()
+        {
+            return new TimestampCommand(_executor, _commandBuilder);
         }
         public ICommand<GreenScreenModel> CreateGreenScreenCommand()
         {
@@ -147,6 +153,11 @@ public ICommand<ReplaceAudioModel> CreateReplaceAudioCommand()
         {
             return new VideoCompressionCommand(_executor, _commandBuilder);
         }
+        public ICommand<DuplicateVideoModel> CreateDuplicateVideoCommand()
+        {
+            return new DuplicateVideoCommand(_executor, _commandBuilder);
+        }
+
     }
 }
 
