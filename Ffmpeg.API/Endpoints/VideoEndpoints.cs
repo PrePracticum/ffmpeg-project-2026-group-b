@@ -107,6 +107,9 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/replace-audio", ReplaceAudio)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
+                app.MapPost("/api/video/mix-audio", MixAudio)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
         
 
