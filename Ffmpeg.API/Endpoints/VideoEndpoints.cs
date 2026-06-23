@@ -107,7 +107,11 @@ namespace FFmpeg.API.Endpoints
             app.MapPost("/api/video/replace-audio", ReplaceAudio)
                 .DisableAntiforgery()
                 .WithMetadata(new RequestSizeLimitAttribute(104857600));
+                app.MapPost("/api/video/mix-audio", MixAudio)
+                .DisableAntiforgery()
+                .WithMetadata(new RequestSizeLimitAttribute(104857600));
         }
+        
 
         private static async Task<IResult> ChangeAudioFormat(HttpContext context, [FromForm] ChangeAudioFormatDto dto)
         {
@@ -1561,7 +1565,64 @@ namespace FFmpeg.API.Endpoints
                 return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
             }
         }
+
+        private static async Task<IResult> MixAudio(
+            HttpContext context,
+            [FromForm] MixAudioDto dto)
+        {
+            var fileService = context.RequestServices.GetRequiredService<IFileService>();
+            var ffmpegService = context.RequestServices.GetRequiredService<IFFmpegServiceFactory>();
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                if (dto.AudioFile1 == null || dto.AudioFile2 == null)
+                    return Results.BadRequest("Two audio files are required");
+
+                string audioFileName1 = await fileService.SaveUploadedFileAsync(dto.AudioFile1);
+                string audioFileName2 = await fileService.SaveUploadedFileAsync(dto.AudioFile2);
+                string outputFileName = await fileService.GenerateUniqueFileNameAsync(".mp3");
+
+                List<string> filesToCleanup = new() { audioFileName1, audioFileName2, outputFileName };
+
+                try
+                {
+                    var command = ffmpegService.CreateMixAudioCommand();
+                    var result = await command.ExecuteAsync(new MixAudioModel
+                    {
+                        InputFile1 = audioFileName1,
+                        InputFile2 = audioFileName2,
+                        OutputFile = outputFileName
+                    });
+
+                    if (!result.IsSuccess)
+                    {
+                        logger.LogError("FFmpeg mix audio command failed: {ErrorMessage}", result.ErrorMessage);
+                        _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                        return Results.Problem("Failed to mix audio: " + result.ErrorMessage, statusCode: 500);
+                    }
+
+                    byte[] fileBytes = await fileService.GetOutputFileAsync(outputFileName);
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    return Results.File(fileBytes, "audio/mpeg", "mixed_audio.mp3");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing mix audio request");
+                    _ = fileService.CleanupTempFilesAsync(filesToCleanup);
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in MixAudio endpoint");
+                return Results.Problem("An error occurred: " + ex.Message, statusCode: 500);
+            }
+        }
     }
 }
+        
+    
 
+    
 
